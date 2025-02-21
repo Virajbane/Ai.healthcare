@@ -8,6 +8,7 @@ import {
 } from '@clerk/nextjs'
 import './globals.css'
 import { dark } from '@clerk/themes'
+import Header from '@/components/Header';
 
 export default function RootLayout({children,}) {
   return (
@@ -17,6 +18,7 @@ export default function RootLayout({children,}) {
     }}>
       <html lang="en" webcrx="">
         <body>
+          
           
           {children}
         </body>
