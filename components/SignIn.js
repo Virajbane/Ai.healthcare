@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';  // Import useRouter from next/navigation (for app directory)
-import { SignInButton } from '@clerk/nextjs';
 
 function SignIn() {
   const [isMounted, setIsMounted] = useState(false); // To ensure the component is mounted before accessing the router
   const router = useRouter(); // Get the router from next/navigation
+  const isUserNew = true; // Set this to true if the user is new, else false (You can check this logic through Clerk or session data)
 
   useEffect(() => {
     // Set isMounted to true once the component has mounted (client-side)
@@ -14,8 +14,12 @@ function SignIn() {
   }, []);
 
   const handleSignIn = () => {
-    if (router) { // Ensure the router is available before calling push
-      router.push('/app/Auth/sign-in');  // Navigate to the sign-in page
+    if (router) {
+      if (isUserNew) {
+        router.push('/Auth/sign-up');  // Redirect to the sign-up page if the user is new
+      } else {
+        router.push('/Auth/sign-in');  // Otherwise, go to the sign-in page
+      }
     } else {
       console.error('Router is not available');
     }
