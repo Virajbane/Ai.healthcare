@@ -26,29 +26,52 @@ const ChatbotInterface = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Function to manually convert Markdown to HTML
+const convertMarkdownToHtml = (text) => {
+  // Bold: Replace **text** with <strong>text</strong>
+  text = text.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+  
+  // Italic: Replace *text* with <em>text</em>
+  text = text.replace(/\*(.*?)\*/g, "<em>$1</em>");
+
+  // Links: Replace [text](url) with <a href="url">text</a>
+  text = text.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+  return text;
+};
+
+
+
   const sendMessage = async (e) => {
     e.preventDefault();
     if (inputMessage.trim() === "") return;
 
-    // Add user message
     const userMessage = { role: "user", content: inputMessage };
     setMessages((prev) => [...prev, userMessage]);
     setInputMessage("");
     setIsLoading(true);
 
-    // Simulate AI response delay
-    setTimeout(() => {
-      const aiResponses = [
-        "Based on your symptoms, it could be a mild respiratory infection. I recommend rest and increased fluid intake. Would you like me to provide more specific self-care recommendations?",
-        "Your vital signs are within normal range. Would you like me to schedule a follow-up with your doctor, or would you prefer I analyze your recent sleep pattern data first?",
-        "I've analyzed your recent test results and everything looks good. Continue with your current medication regimen. Your cholesterol levels have improved by 15% since your last check-up.",
-        "It's important to monitor these symptoms. I can set up a virtual consultation with a specialist or provide you with a preliminary assessment based on your medical history. What would you prefer?"
-      ];
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: inputMessage }),
+      });
+
+      const data = await response.json();
+      console.log(data);
+      const assistantMessage = convertMarkdownToHtml(data.response);
       
-      const randomResponse = aiResponses[Math.floor(Math.random() * aiResponses.length)];
-      setMessages((prev) => [...prev, { role: "assistant", content: randomResponse }]);
-      setIsLoading(false);
-    }, 1500);
+      setMessages((prev) => [...prev, { role: "assistant", content: assistantMessage }]);
+    } catch (error) {
+      console.error("Error fetching AI response:", error);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Sorry, there was an error. Please try again later." },
+      ]);
+    }
+
+    setIsLoading(false);
   };
 
   const toggleSidebar = () => {
@@ -78,7 +101,7 @@ const ChatbotInterface = () => {
 
   return (
     <div className="flex flex-col h-screen">
-      {/* Main chat area - positioned below header with pt-24 to account for header height */}
+      {/* Main chat area */}
       <div className="flex flex-1 pt-24 bg-gray-900 text-white overflow-hidden">
         {/* Sidebar */}
         <motion.div 
@@ -122,6 +145,7 @@ const ChatbotInterface = () => {
             </div>
           </div>
 
+          {/* Chat categories */}
           <div className="px-3 space-y-6">
             {chatCategories.map((category, idx) => (
               <div key={idx}>
@@ -141,6 +165,7 @@ const ChatbotInterface = () => {
             ))}
           </div>
 
+          {/* Sidebar bottom buttons */}
           <div className="absolute bottom-4 left-3 right-3">
             <div className="flex justify-between px-2">
               <button className="p-2 hover:bg-gray-800 rounded-lg">
@@ -171,79 +196,80 @@ const ChatbotInterface = () => {
             </div>
           </div>
 
-          {/* Messages area */}
-          <div className="flex-1 overflow-y-auto bg-gradient-to-b from-gray-900 to-black">
-            <div className="max-w-4xl mx-auto">
-              {messages.map((message, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className={`py-5 ${message.role === "assistant" ? "border-b border-gray-800" : ""}`}
-                >
-                  <div className="px-6 max-w-3xl mx-auto flex gap-4">
-                    <div className="flex-shrink-0 mt-0.5">
-                      {message.role === "assistant" ? (
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-600 flex items-center justify-center">
-                          <Brain className="w-5 h-5" />
-                        </div>
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
-                          <User className="w-5 h-5" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-sm mb-1">
-                        {message.role === "assistant" ? "HealthAI Assistant" : "You"}
-                      </p>
-                      <div className="prose prose-invert max-w-none">
-                        <p>{message.content}</p>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+      {/* Messages area */}
+<div className="flex-1 overflow-y-auto bg-gradient-to-b from-gray-900 to-black">
+  <div className="max-w-4xl mx-auto">
+    {messages.map((message, index) => (
+      <motion.div
+        key={index}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className={`py-5 ${message.role === "assistant" ? "border-b border-gray-800" : ""}`}
+      >
+        <div className="px-6 max-w-3xl mx-auto flex gap-4">
+          <div className="flex-shrink-0 mt-0.5">
+            {message.role === "assistant" ? (
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-600 flex items-center justify-center">
+                <Brain className="w-5 h-5" />
+              </div>
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
+                <User className="w-5 h-5" />
+              </div>
+            )}
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm mb-1">
+              {message.role === "assistant" ? "HealthAI Assistant" : "You"}
+            </p>
+            <div className="prose prose-invert max-w-none whitespace-pre-wrap">
+            <div dangerouslySetInnerHTML={{ __html: message.content }} />
 
-              {isLoading && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="py-5 border-b border-gray-800"
-                >
-                  <div className="px-6 max-w-3xl mx-auto flex gap-4">
-                    <div className="flex-shrink-0 mt-0.5">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-600 flex items-center justify-center">
-                        <Brain className="w-5 h-5" />
-                      </div>
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-sm mb-1">HealthAI Assistant</p>
-                      <div className="flex items-center gap-1">
-                        <motion.div 
-                          className="w-2 h-2 bg-teal-400 rounded-full"
-                          animate={{ opacity: [0.4, 1, 0.4] }}
-                          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                        />
-                        <motion.div 
-                          className="w-2 h-2 bg-blue-400 rounded-full"
-                          animate={{ opacity: [0.4, 1, 0.4] }}
-                          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
-                        />
-                        <motion.div 
-                          className="w-2 h-2 bg-teal-400 rounded-full"
-                          animate={{ opacity: [0.4, 1, 0.4] }}
-                          transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-              <div ref={messagesEndRef} />
             </div>
           </div>
+        </div>
+      </motion.div>
+    ))}
+
+    {isLoading && (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="py-5 border-b border-gray-800"
+      >
+        <div className="px-6 max-w-3xl mx-auto flex gap-4">
+          <div className="flex-shrink-0 mt-0.5">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-600 flex items-center justify-center">
+              <Brain className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-sm mb-1">HealthAI Assistant</p>
+            <div className="flex items-center gap-1">
+              <motion.div 
+                className="w-2 h-2 bg-teal-400 rounded-full"
+                animate={{ opacity: [0.4, 1, 0.4] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              />
+              <motion.div 
+                className="w-2 h-2 bg-blue-400 rounded-full"
+                animate={{ opacity: [0.4, 1, 0.4] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
+              />
+              <motion.div 
+                className="w-2 h-2 bg-teal-400 rounded-full"
+                animate={{ opacity: [0.4, 1, 0.4] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
+              />
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    )}
+    <div ref={messagesEndRef} />
+  </div>
+</div>
 
           {/* Input area */}
           <div className="bg-gray-900 border-t border-gray-800 p-4">

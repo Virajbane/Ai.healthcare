@@ -14,7 +14,14 @@ const VitalsMonitoring = () => {
     temperature: { current: 98.6, min: 97, max: 99, unit: "°F" },
     respirationRate: { current: 16, min: 12, max: 20, unit: "br/min" }
   });
+  const [imageFile, setImageFile] = useState(null);
+  const [extractedData, setExtractedData] = useState(null);
 
+  // Function to check if the value is within the normal range
+const isNormal = (value, range) => {
+  const [min, max] = range.split('-').map(Number); // Split the range and convert to numbers
+  return value >= min && value <= max; // Check if the value is within the range
+};
   // Simulate live updates
   useEffect(() => {
     const interval = setInterval(() => {
@@ -33,6 +40,34 @@ const VitalsMonitoring = () => {
     
     return () => clearInterval(interval);
   }, []);
+
+  const handleImageChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setImageFile(file);
+    }
+  };
+
+  const handleImageUpload = async () => {
+    if (imageFile) {
+      const formData = new FormData();
+      formData.append("image", imageFile);
+
+      try {
+        const response = await fetch("https://spx239g8-5000.inc1.devtunnels.ms/process_image", {
+          method: "POST",
+          body: formData
+        });
+        var data = await response.json();
+         data = JSON.parse(data.extracted_data); // Store the extracted data
+        
+        setExtractedData(data);
+        console.log("Extracted data:", data);
+      } catch (error) {
+        console.error("Error uploading image:", error);
+      }
+    }
+  };
 
   const vitalCards = [
     {
@@ -130,6 +165,7 @@ const VitalsMonitoring = () => {
   return (
     <div className="flex flex-col h-full pt-24 pb-6 bg-gradient-to-b from-gray-900 to-black text-white overflow-auto">
       <div className="container mx-auto px-4">
+        
         {/* Header & Summary */}
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
@@ -144,34 +180,60 @@ const VitalsMonitoring = () => {
             Real-time monitoring of your vital signs and health metrics
           </p>
 
-          <div className="mt-6 flex items-center gap-4">
-            <div className="flex-1 bg-gray-800 rounded-xl p-5 border border-gray-700">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="text-lg font-medium">Overall Status</h3>
-                <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm">Healthy</span>
-              </div>
-              <p className="text-gray-400">
-                All vitals are within normal range. Last sync: 2 minutes ago.
-              </p>
-            </div>
-            
-            <motion.div 
-              className="flex-initial bg-gradient-to-br from-teal-500/20 to-blue-600/20 rounded-xl p-5 border border-blue-500/30"
-              whileHover={{ scale: 1.02 }}
-              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+          {/* File Upload Section */}
+          <div className="mt-6">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="p-2 bg-gray-800 rounded-lg text-white"
+            />
+            <button
+              onClick={handleImageUpload}
+              className="mt-2 px-4 py-2 bg-teal-500 text-white rounded-lg"
             >
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-500/20 rounded-lg">
-                  <Clock className="w-6 h-6 text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="font-medium">Next Check-up</h3>
-                  <p className="text-blue-300">Mar 15, 2025</p>
-                </div>
-              </div>
-            </motion.div>
+              Upload Image for Processing
+            </button>
           </div>
+
+          {/* Display extracted data */}
+          {extractedData && (
+            <div className="mt-4 bg-gray-800 p-4 rounded-lg overflow-x-auto">
+              <h3 className="text-lg font-medium">Extracted Data:</h3>
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className="py-2 text-left">Test Name</th>
+                    <th className="py-2 text-left">Value</th>
+                    <th className="py-2 text-left">Normal Range</th>
+                    <th className="py-2 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {extractedData.map((item, index) => (
+                    <tr key={index} className="border-b border-gray-700">
+                      <td className="py-2">{item["test name"]}</td>
+                      <td className="py-2">{item.value} {item.units}</td>
+                      <td className="py-2">{item.range}</td>
+                      <td className="py-2">
+                        {isNormal(parseFloat(item.value), item.range) ? (
+                          <span className="text-green-400">Normal</span>
+                        ) : (
+                          <span className="flex items-center text-red-400">
+                            <AlertTriangle className="w-4 h-4 mr-1" />
+                            Abnormal
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </motion.div>
+
+          
 
         {/* Vitals Card Carousel */}
         <div className="mb-12 relative">
