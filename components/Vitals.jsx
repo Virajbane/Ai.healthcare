@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Activity, Heart, Droplet, Thermometer, Clock, BrainCircuit, ChevronRight, ChevronLeft, AlertTriangle } from "lucide-react";
+import { Activity, Heart, Droplet, Thermometer, Clock, BrainCircuit, ChevronRight, ChevronLeft,Loader, AlertTriangle } from "lucide-react";
 
 const VitalsMonitoring = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -16,6 +16,7 @@ const VitalsMonitoring = () => {
   });
   const [imageFile, setImageFile] = useState(null);
   const [extractedData, setExtractedData] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   // Function to check if the value is within the normal range
 const isNormal = (value, range) => {
@@ -50,6 +51,7 @@ const isNormal = (value, range) => {
 
   const handleImageUpload = async () => {
     if (imageFile) {
+      setLoading(true);  // Set loading state to true when starting the upload
       const formData = new FormData();
       formData.append("image", imageFile);
 
@@ -59,12 +61,14 @@ const isNormal = (value, range) => {
           body: formData
         });
         var data = await response.json();
-         data = JSON.parse(data.extracted_data); // Store the extracted data
+        data = JSON.parse(data.extracted_data); // Store the extracted data
         
         setExtractedData(data);
         console.log("Extracted data:", data);
       } catch (error) {
         console.error("Error uploading image:", error);
+      } finally {
+        setLoading(false);  // Set loading state to false after the request is complete
       }
     }
   };
@@ -195,6 +199,13 @@ const isNormal = (value, range) => {
               Upload Image for Processing
             </button>
           </div>
+
+          {loading && (
+            <div className="mt-4 flex justify-center items-center">
+              <Loader className="w-8 h-8 text-teal-500 animate-spin" />
+              <span className="ml-2 text-gray-400">Processing...</span>
+            </div>
+          )}
 
           {/* Display extracted data */}
           {extractedData && (
