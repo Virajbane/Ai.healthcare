@@ -12,36 +12,37 @@ const Header = () => {
 
   useEffect(() => {
     if (isSignedIn) {
-      router.push("/Userpage");
+      router.prefetch("/Userpage"); // preloads the page
     }
   }, [isSignedIn, router]);
 
   return (
-    <div className="flex justify-center w-full pb-3 fixed  top-0 z-50 px-4 pt-4">
+    <div className="flex justify-center w-full pb-3 fixed top-0 z-50 px-4 pt-4">
       <header className="w-10/12 border-2 border-slate-500 bg-gradient-to-r from-gray-800/70 to-gray-900/70 backdrop-blur-sm shadow-md rounded-[50px]">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          {/* Company Name */}
           <h1 className="text-2xl font-bold bg-gradient-to-r from-teal-400 to-blue-500 bg-clip-text text-transparent">
             HealthAI
           </h1>
 
-          {/* Navigation */}
           <nav className="flex items-center space-x-6">
             <ul className="flex items-center space-x-4">
+              {/* ✅ Doctors Button (redirects to Userpage with chat) */}
               <li
                 className="cursor-pointer hover:scale-110 transition-transform duration-300 ease-in-out group"
-                onClick={() => alert("Patient Monitoring Selected")}
+                onClick={() => router.push("/Userpage")}
               >
                 <div className="flex flex-col items-center">
                   <Activity className="w-8 h-8 text-teal-500 group-hover:text-teal-700" />
                   <span className="text-xs text-gray-600 group-hover:text-teal-700">
-                    Vitals
+                    Doctors
                   </span>
                 </div>
               </li>
+
+              {/* ✅ AI Diagnosis Button (redirects to chatbot only) */}
               <li
                 className="cursor-pointer hover:scale-110 transition-transform duration-300 ease-in-out group"
-                onClick={() => alert("AI Diagnosis Selected")}
+                onClick={() => router.push("/Userpage?chat=bot")}
               >
                 <div className="flex flex-col items-center">
                   <Brain className="w-8 h-8 text-blue-500 group-hover:text-blue-700" />
@@ -52,14 +53,9 @@ const Header = () => {
               </li>
             </ul>
 
-            {/* Conditionally render SignIn */}
             {!isSignedIn && (
-              <SignIn 
-                forceRedirectUrl="/Userpage" 
-              />
+              <SignIn forceRedirectUrl="/Userpage" />
             )}
-
-            {/* User Menu */}
             {isSignedIn && <UserButton />}
           </nav>
         </div>

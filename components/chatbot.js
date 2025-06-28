@@ -360,7 +360,7 @@ Keep it simple and practical. Avoid overly technical language.`
       </AnimatePresence>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col relative">
+      <div className="flex-1 mt-28 flex flex-col relative">
         {/* Header */}
         <div className="relative z-30 p-6 flex items-center justify-between backdrop-blur-xl bg-black/20 border-b border-gray-700/30">
           <div className="flex items-center gap-4">
