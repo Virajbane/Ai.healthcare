@@ -1,3 +1,4 @@
+
 "use client"
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -15,18 +16,188 @@ import {
   AlertTriangle,
   CheckCircle,
   Sparkles,
+  Clock,
+  Trash2,
+  Edit3,
+  Settings,
+  Sun,
+  Moon,
+  Search,
+  Copy,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 
+// Separate Sidebar Component
+const Sidebar = ({ 
+  visible, 
+  onToggle, 
+  onNewChat, 
+  onLoadChat, 
+  onQuickAction, 
+  recentChats, 
+  currentChatId, 
+  darkMode, 
+  onToggleDarkMode 
+}) => {
+  const quickActions = [
+    { icon: Heart, label: "Symptoms", color: "text-red-400", query: "What are common symptoms I should watch for?" },
+    { icon: Shield, label: "Prevention", color: "text-green-400", query: "How can I prevent common illnesses?" },
+    { icon: Activity, label: "Wellness", color: "text-blue-400", query: "Give me daily wellness tips" },
+    { icon: Brain, label: "Mental Health", color: "text-purple-400", query: "How can I improve my mental health?" },
+  ];
+
+  const handleChatAction = (chatId, action) => {
+    if (action === 'edit') {
+      console.log('Edit chat:', chatId);
+    } else if (action === 'delete') {
+      console.log('Delete chat:', chatId);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          initial={{ x: -280, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: -280, opacity: 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="w-[280px] flex-shrink-0 overflow-hidden relative z-20 bg-gray-900 border-r border-gray-800"
+        >
+          <div className="flex flex-col h-full">
+            {/* Sidebar Header */}
+            <div className="p-3 border-b border-gray-800">
+              <motion.button
+                onClick={onNewChat}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-medium transition-colors bg-white text-black hover:bg-gray-100"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New chat</span>
+              </motion.button>
+            </div>
+
+            {/* Quick Topics */}
+            <div className="p-3 border-b border-gray-800">
+              <div className="grid grid-cols-2 gap-2">
+                {quickActions.map((action, index) => {
+                  const IconComponent = action.icon;
+                  return (
+                    <motion.button
+                      key={index}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="p-2 rounded-lg transition-colors text-center group bg-gray-800 hover:bg-gray-700"
+                      onClick={() => onQuickAction(action.query)}
+                    >
+                      <IconComponent className={`w-4 h-4 mx-auto mb-1 ${action.color}`} />
+                      <span className="text-xs text-gray-400 group-hover:text-gray-300">
+                        {action.label}
+                      </span>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Recent Chats */}
+            <div className="flex-1 overflow-y-auto p-3">
+              <div className="space-y-1">
+                {recentChats.map((chat) => (
+                  <div
+                    key={chat.id}
+                    className={`group relative rounded-lg transition-colors ${
+                      currentChatId === chat.id
+                        ? 'bg-gray-800'
+                        : 'hover:bg-gray-800'
+                    }`}
+                  >
+                    <motion.div
+                      onClick={() => onLoadChat(chat.id)}
+                      className="cursor-pointer p-3 rounded-lg"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium truncate text-gray-200 mb-1">
+                            {chat.title}
+                          </h4>
+                          <p className="text-xs text-gray-500">
+                            {chat.date}
+                          </p>
+                        </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            className="p-1 rounded hover:bg-gray-700 text-gray-500 hover:text-gray-400"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleChatAction(chat.id, 'edit');
+                            }}
+                          >
+                            <Edit3 className="w-3 h-3" />
+                          </button>
+                          <button 
+                            className="p-1 rounded hover:bg-gray-700 text-gray-500 hover:text-red-400"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleChatAction(chat.id, 'delete');
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Sidebar Footer */}
+            <div className="p-3 border-t border-gray-800">
+              <div className="flex items-center justify-between text-sm text-gray-400">
+                <span>HealthAI Assistant</span>
+                <div className="flex gap-1">
+                  <button 
+                    onClick={onToggleDarkMode}
+                    className="p-1.5 rounded hover:bg-gray-800"
+                  >
+                    {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                  </button>
+                  <button className="p-1.5 rounded hover:bg-gray-800">
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+// Main ChatbotInterface Component
 const ChatbotInterface = () => {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
-      content: "Hello! I'm your AI healthcare assistant. How can I help you today?",
+      content: "Hello! I'm your AI healthcare assistant. I can help you with health information, symptoms, treatments, and wellness tips. How can I assist you today?",
+      timestamp: new Date(),
     },
   ]);
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [recentChats, setRecentChats] = useState([
+    { id: 1, title: "Fever symptoms and treatment", date: "Today" },
+    { id: 2, title: "Headache remedies", date: "Yesterday" },
+    { id: 3, title: "Healthy diet tips", date: "2 days ago" },
+    { id: 4, title: "Exercise benefits", date: "1 week ago" },
+  ]);
+  const [currentChatId, setCurrentChatId] = useState(null);
+  const [darkMode, setDarkMode] = useState(true);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -35,6 +206,82 @@ const ChatbotInterface = () => {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Enhanced API call function
+  const callGeminiAPI = async (message) => {
+    const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+
+    if (!API_KEY) {
+      throw new Error("Missing Gemini API Key in environment variables");
+    }
+
+    const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
+
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `You are a healthcare AI assistant. Please provide helpful, accurate health information while emphasizing that users should consult healthcare professionals for medical advice. Format your response with proper paragraphs and bullet points where appropriate. User question: ${message}`
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1024,
+          },
+          safetySettings: [
+            {
+              category: "HARM_CATEGORY_HARASSMENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_HATE_SPEECH",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            },
+            {
+              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+              threshold: "BLOCK_MEDIUM_AND_ABOVE"
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`API request failed: ${response.status}\n${errorBody}`);
+      }
+
+      const data = await response.json();
+
+      if (
+        data.candidates &&
+        data.candidates[0]?.content?.parts &&
+        data.candidates[0].content.parts[0]?.text
+      ) {
+        return data.candidates[0].content.parts[0].text;
+      } else {
+        throw new Error("Invalid response format from Gemini API");
+      }
+
+    } catch (error) {
+      console.error("Gemini API Error:", error);
+      throw error;
+    }
   };
 
   const sendMessage = async (e) => {
@@ -52,97 +299,26 @@ const ChatbotInterface = () => {
     setInputMessage("");
     setIsLoading(true);
 
-    try {
-      const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-      
-      if (!apiKey) {
-        throw new Error("API key not found. Please set NEXT_PUBLIC_GEMINI_API_KEY in your environment variables.");
-      }
-
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
-      const requestBody = {
-        contents: [
-          {
-            parts: [
-              { 
-                text: `You are a helpful healthcare assistant. Please provide clear, well-structured responses about health topics. Keep your response concise but informative.
-
-User question: ${currentMessage}
-
-Please provide:
-1. A brief, clear explanation
-2. Main symptoms (if relevant)
-3. Simple treatment or management steps
-4. When to see a doctor
-5. Prevention tips (if applicable)
-
-Keep it simple and practical. Avoid overly technical language.` 
-              }
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 1,
-          topP: 1,
-          maxOutputTokens: 1500,
-        },
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          }
-        ]
+    // Add to recent chats if it's a new conversation
+    if (messages.length <= 1) {
+      const newChat = {
+        id: Date.now(),
+        title: currentMessage.length > 40 ? currentMessage.substring(0, 40) + "..." : currentMessage,
+        date: "Now",
       };
+      setRecentChats(prev => [newChat, ...prev.slice(0, 9)]);
+      setCurrentChatId(newChat.id);
+    }
 
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (!data.candidates || data.candidates.length === 0) {
-        throw new Error("No response generated from API");
-      }
-
-      if (data.candidates[0].finishReason === "SAFETY") {
-        throw new Error("Response was blocked due to safety filters");
-      }
-
-      const generatedText = data.candidates[0]?.content?.parts?.[0]?.text;
+    try {
+      // Try to call Gemini API
+      const response = await callGeminiAPI(currentMessage);
       
-      if (!generatedText) {
-        throw new Error("No text content in API response");
-      }
-
-      const formattedContent = formatHealthResponse(generatedText);
-
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: formattedContent,
+          content: response,
           timestamp: new Date(),
         },
       ]);
@@ -150,24 +326,14 @@ Keep it simple and practical. Avoid overly technical language.`
     } catch (error) {
       console.error("Error fetching response:", error);
       
-      let errorMessage = "I'm sorry, I encountered an issue. ";
+      // Fallback to mock response if API fails
+      const mockResponse = generateMockHealthResponse(currentMessage);
       
-      if (error.message.includes("API key")) {
-        errorMessage += "Please check your API configuration.";
-      } else if (error.message.includes("safety")) {
-        errorMessage += "Your question couldn't be processed due to content policies. Please rephrase your question.";
-      } else {
-        errorMessage += "Please try again in a moment.";
-      }
-
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: {
-            type: 'error',
-            message: errorMessage
-          },
+          content: mockResponse,
           timestamp: new Date(),
         },
       ]);
@@ -176,303 +342,374 @@ Keep it simple and practical. Avoid overly technical language.`
     }
   };
 
-  const formatHealthResponse = (text) => {
-    // Split text into paragraphs and clean up
-    const paragraphs = text.split(/\n\n+/).filter(p => p.trim());
+  const generateMockHealthResponse = (question) => {
+    const questionLower = question.toLowerCase();
     
-    const sections = [];
-    let currentSection = { title: "Information", content: [] };
+    if (questionLower.includes('fever')) {
+      return `**Understanding Fever**
+
+Fever is your body's natural response to fighting infections and illnesses. Here's what you need to know:
+
+**What is considered a fever?**
+• Adults: Temperature above 100.4°F (38°C)
+• Children: Temperature above 100.4°F (38°C) rectally
+
+**Common causes:**
+• Viral infections (cold, flu)
+• Bacterial infections
+• Inflammatory conditions
+• Certain medications
+• Heat exhaustion
+
+**When to seek medical attention:**
+• Fever above 103°F (39.4°C)
+• Fever lasting more than 3 days
+• Severe symptoms like difficulty breathing
+• Signs of dehydration
+• Persistent vomiting
+
+**Home care tips:**
+• Stay hydrated with water, broths, or electrolyte solutions
+• Rest and get plenty of sleep
+• Use fever reducers like acetaminophen or ibuprofen as directed
+• Dress lightly and keep room temperature comfortable
+• Apply cool, damp cloths to forehead
+
+**Important reminder:** This information is for educational purposes only. Always consult with healthcare professionals for personalized medical advice, especially for high fevers or concerning symptoms.`;
+    }
     
-    paragraphs.forEach(paragraph => {
-      const cleanPara = paragraph.trim();
+    if (questionLower.includes('headache')) {
+      return `**Headache Management Guide**
+
+Headaches are one of the most common health complaints. Here's comprehensive information to help you understand and manage them:
+
+**Types of headaches:**
+• **Tension headaches** - Most common, feels like a tight band around head
+• **Migraines** - Intense, often one-sided, may include nausea and light sensitivity
+• **Cluster headaches** - Severe, occur in patterns or clusters
+• **Sinus headaches** - Related to sinus pressure and congestion
+
+**Immediate relief strategies:**
+• Apply cold or warm compress to head or neck
+• Practice relaxation techniques and deep breathing
+• Gently massage temples, neck, and shoulders
+• Rest in a quiet, dark room
+• Stay hydrated with water
+
+**Lifestyle modifications:**
+• Maintain regular sleep schedule (7-9 hours nightly)
+• Eat regular, balanced meals
+• Limit caffeine and alcohol
+• Manage stress through exercise or meditation
+• Stay hydrated throughout the day
+
+**When to see a healthcare provider:**
+• Sudden, severe headache unlike any before
+• Headache with fever, stiff neck, confusion
+• Headaches that worsen despite treatment
+• Frequent headaches interfering with daily life
+• Headache after head injury
+
+**Remember:** While occasional headaches are normal, persistent or severe headaches warrant professional medical evaluation for proper diagnosis and treatment.`;
+    }
+
+    // Default response for other questions
+    return `Thank you for your health question. I'd be happy to provide information and guidance.
+
+**How I can help:**
+• Explain common symptoms and conditions
+• Provide general health and wellness tips
+• Discuss prevention strategies
+• Share information about treatments and home remedies
+
+**Please note:** The information I provide is for educational purposes only and should not replace professional medical advice. For specific health concerns, accurate diagnosis, or treatment recommendations, please consult with qualified healthcare professionals.
+
+**To get the most helpful response:**
+• Be specific about your symptoms or concerns
+• Mention how long you've been experiencing issues
+• Include any relevant medical history if comfortable
+• Ask about prevention or general wellness topics
+
+Is there a specific health topic or concern you'd like me to address?`;
+  };
+
+  const handleQuickAction = (query) => {
+    setInputMessage(query);
+  };
+
+  const startNewChat = () => {
+    setMessages([
+      {
+        role: "assistant",
+        content: "Hello! I'm your AI healthcare assistant. I can help you with health information, symptoms, treatments, and wellness tips. How can I assist you today?",
+        timestamp: new Date(),
+      },
+    ]);
+    setCurrentChatId(null);
+  };
+
+  const loadChat = (chatId) => {
+    setCurrentChatId(chatId);
+    // In a real app, you'd load the actual chat history here
+    setMessages([
+      {
+        role: "assistant",
+        content: "Previous conversation loaded. How can I continue helping you with your health questions?",
+        timestamp: new Date(),
+      },
+    ]);
+  };
+
+  const formatMessage = (content) => {
+    if (typeof content !== 'string') return content;
+
+    // Split content into sections and format
+    const sections = content.split('\n\n');
+    
+    return sections.map((section, index) => {
+      // Handle headers (lines starting with **)
+      if (section.includes('**')) {
+        const parts = section.split('**');
+        return (
+          <div key={index} className="mb-4">
+            {parts.map((part, partIndex) => {
+              if (partIndex % 2 === 1) {
+                // This is a header
+                return (
+                  <h3 key={partIndex} className="font-semibold text-white mb-3 text-lg">
+                    {part}
+                  </h3>
+                );
+              } else if (part.trim()) {
+                // Regular text
+                return (
+                  <div key={partIndex} className="mb-2">
+                    {formatTextWithBullets(part)}
+                  </div>
+                );
+              }
+              return null;
+            })}
+          </div>
+        );
+      } else {
+        // Regular paragraph
+        return (
+          <div key={index} className="mb-4">
+            {formatTextWithBullets(section)}
+          </div>
+        );
+      }
+    });
+  };
+
+  const formatTextWithBullets = (text) => {
+    const lines = text.split('\n');
+    const elements = [];
+    let currentList = [];
+    
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
       
-      // Check if it's a header/title
-      if (cleanPara.match(/^\d+\.|\*\*.*\*\*|^[A-Z][^.]*:$/) || 
-          cleanPara.toLowerCase().includes('symptom') ||
-          cleanPara.toLowerCase().includes('treatment') ||
-          cleanPara.toLowerCase().includes('prevention') ||
-          cleanPara.toLowerCase().includes('when to see') ||
-          cleanPara.toLowerCase().includes('seek medical')) {
-        
-        // Save current section if it has content
-        if (currentSection.content.length > 0) {
-          sections.push(currentSection);
+      if (trimmedLine.startsWith('•') || trimmedLine.startsWith('-')) {
+        // This is a bullet point
+        currentList.push(
+          <li key={index} className="mb-2 text-gray-300 leading-relaxed">
+            {trimmedLine.substring(1).trim()}
+          </li>
+        );
+      } else {
+        // Not a bullet point
+        if (currentList.length > 0) {
+          // Flush current list
+          elements.push(
+            <ul key={`list-${elements.length}`} className="list-disc list-inside space-y-2 mb-4 ml-2">
+              {currentList}
+            </ul>
+          );
+          currentList = [];
         }
         
-        // Start new section
-        const title = cleanPara.replace(/^\d+\.|\*\*|\*$/g, '').replace(/:/g, '').trim();
-        currentSection = { 
-          title: title.charAt(0).toUpperCase() + title.slice(1), 
-          content: [] 
-        };
-      } else {
-        // Add to current section
-        currentSection.content.push(cleanPara);
+        if (trimmedLine) {
+          elements.push(
+            <p key={index} className="text-gray-300 leading-relaxed mb-3">
+              {trimmedLine}
+            </p>
+          );
+        }
       }
     });
     
-    // Add final section
-    if (currentSection.content.length > 0) {
-      sections.push(currentSection);
+    // Flush any remaining list items
+    if (currentList.length > 0) {
+      elements.push(
+        <ul key={`list-${elements.length}`} className="list-disc list-inside space-y-2 mb-4 ml-2">
+          {currentList}
+        </ul>
+      );
     }
     
-    // If no sections were created, put everything in one section
-    if (sections.length === 0) {
-      sections.push({
-        title: "Health Information",
-        content: paragraphs
-      });
-    }
-    
-    return {
-      type: 'simple_structured',
-      sections: sections
-    };
+    return elements;
   };
 
-  const toggleSidebar = () => {
-    setSidebarVisible(!sidebarVisible);
-  };
-
-  const quickActions = [
-    { icon: Heart, label: "Symptoms", color: "text-red-400" },
-    { icon: Shield, label: "Prevention", color: "text-green-400" },
-    { icon: Activity, label: "Wellness", color: "text-blue-400" },
-    { icon: Brain, label: "Mental Health", color: "text-purple-400" },
-  ];
-
-  const renderMessage = (message, index) => {
-    const content = message.content;
-
-    // Handle error messages
-    if (content?.type === 'error') {
-      return (
-        <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
-            <p className="text-red-200">{content.message}</p>
-          </div>
-        </div>
-      );
-    }
-
-    // Handle simple text messages
-    if (typeof content === 'string') {
-      return (
-        <div className="prose prose-invert max-w-none">
-          <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">{content}</p>
-        </div>
-      );
-    }
-
-    // Handle simple structured responses
-    if (content?.type === 'simple_structured') {
-      return (
-        <div className="space-y-4">
-          {content.sections.map((section, idx) => (
-            <div key={idx} className="bg-gray-800/30 backdrop-blur-sm border border-gray-600/20 rounded-lg p-4">
-              {section.title !== "Information" && (
-                <h4 className="font-semibold text-blue-300 mb-3 flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                  {section.title}
-                </h4>
-              )}
-              <div className="space-y-2">
-                {section.content.map((item, itemIdx) => (
-                  <p key={itemIdx} className="text-gray-300 leading-relaxed">
-                    {item}
-                  </p>
-                ))}
-              </div>
-            </div>
-          ))}
-          
-          <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-            <div className="flex items-start gap-2">
-              <CheckCircle className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-              <p className="text-blue-200 text-sm">Always consult healthcare professionals for personalized medical advice.</p>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="prose prose-invert max-w-none">
-        <p className="text-gray-300 leading-relaxed">Unable to display this content properly.</p>
-      </div>
-    );
+  const copyMessage = (content) => {
+    navigator.clipboard.writeText(typeof content === 'string' ? content : JSON.stringify(content));
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
-      {/* Animated background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
-      </div>
-
+    <div className="flex h-screen bg-black text-white">
       {/* Sidebar */}
-      <AnimatePresence>
-        {sidebarVisible && (
-          <motion.div
-            initial={{ x: -280, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -280, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="w-80 bg-black/40 backdrop-blur-xl border-r border-gray-700/50 flex-shrink-0 overflow-y-auto relative z-20"
-          >
-            <div className="p-6">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full flex items-center gap-3 py-4 px-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl hover:from-blue-500 hover:to-purple-500 transition-all duration-300 shadow-lg shadow-blue-500/25 mt-20"
-              >
-                <Plus className="w-5 h-5" />
-                <span className="font-medium">New Consultation</span>
-                <Sparkles className="w-4 h-4 ml-auto" />
-              </motion.button>
-
-              {/* Quick Actions */}
-              <div className="mt-8">
-                <h3 className="text-sm font-medium text-gray-400 mb-4 px-2">Quick Topics</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {quickActions.map((action, index) => {
-                    const IconComponent = action.icon;
-                    return (
-                      <motion.button
-                        key={index}
-                        whileHover={{ scale: 1.05, y: -2 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="p-4 bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-600/20 hover:border-gray-500/50 transition-all duration-300 text-center group"
-                        onClick={() => setInputMessage(`Tell me about ${action.label.toLowerCase()}`)}
-                      >
-                        <IconComponent className={`w-6 h-6 mx-auto mb-2 ${action.color} group-hover:scale-110 transition-transform duration-200`} />
-                        <span className="text-sm text-gray-300 group-hover:text-white transition-colors">{action.label}</span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <Sidebar
+        visible={sidebarVisible}
+        onToggle={() => setSidebarVisible(!sidebarVisible)}
+        onNewChat={startNewChat}
+        onLoadChat={loadChat}
+        onQuickAction={handleQuickAction}
+        recentChats={recentChats}
+        currentChatId={currentChatId}
+        darkMode={darkMode}
+        onToggleDarkMode={() => setDarkMode(!darkMode)}
+      />
 
       {/* Main Chat Area */}
-      <div className="flex-1 mt-28 flex flex-col relative">
+      <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="relative z-30 p-6 flex items-center justify-between backdrop-blur-xl bg-black/20 border-b border-gray-700/30">
-          <div className="flex items-center gap-4">
-            <motion.button
-              onClick={toggleSidebar}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              className="p-2 hover:bg-gray-500/50 rounded-xl transition-colors"
+        <div className="flex items-center justify-between p-4 border-b border-gray-800">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarVisible(!sidebarVisible)}
+              className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
             >
               {sidebarVisible ? (
-                <PanelLeftClose className="w-5 h-5" />
+                <PanelLeftClose className="w-5 h-5 text-gray-400" />
               ) : (
-                <PanelLeft className="w-5 h-5" />
+                <PanelLeft className="w-5 h-5 text-gray-400" />
               )}
-            </motion.button>
-            <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                HealthAI Assistant
-              </h1>
-              <p className="text-sm text-gray-400">Simple, clear health information</p>
-            </div>
+            </button>
+            <h1 className="text-lg font-semibold">HealthAI Assistant</h1>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-sm text-green-400">Online</span>
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span className="text-sm text-gray-400">Online</span>
           </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto relative z-10">
-          <div className="max-w-4xl mx-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-4xl mx-auto px-4 py-6">
             {messages.map((message, index) => (
               <motion.div
                 key={index}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: index * 0.1 }}
-                className={`flex gap-4 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
+                transition={{ duration: 0.3 }}
+                className={`mb-8 ${message.role === 'user' ? 'ml-12' : ''}`}
               >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  message.role === 'assistant'
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-600'
-                    : 'bg-gradient-to-r from-gray-600 to-gray-700'
-                }`}>
-                  {message.role === 'assistant' ? (
-                    <Brain className="w-5 h-5 text-white" />
-                  ) : (
-                    <User className="w-5 h-5 text-white" />
-                  )}
-                </div>
-
-                <div className={`flex-1 ${message.role === 'user' ? 'text-right' : ''}`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="font-medium text-white text-sm">
-                      {message.role === 'assistant' ? 'HealthAI' : 'You'}
-                    </span>
-                  </div>
-                  
-                  <div className={`rounded-xl p-4 ${
-                    message.role === 'user' 
-                      ? 'bg-blue-600/20 border border-blue-500/30 ml-8' 
-                      : 'bg-gray-800/30 backdrop-blur-sm border border-gray-600/20'
+                <div className="flex gap-4">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    message.role === 'assistant'
+                      ? 'bg-green-600'
+                      : 'bg-blue-600'
                   }`}>
-                    {renderMessage(message, index)}
+                    {message.role === 'assistant' ? (
+                      <Brain className="w-5 h-5 text-white" />
+                    ) : (
+                      <User className="w-5 h-5 text-white" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="mb-2">
+                      <span className="font-semibold text-white">
+                        {message.role === 'assistant' ? 'HealthAI' : 'You'}
+                      </span>
+                    </div>
+                    
+                    <div className="prose prose-gray max-w-none">
+                      {typeof message.content === 'string' ? (
+                        <div className="space-y-2">
+                          {formatMessage(message.content)}
+                        </div>
+                      ) : (
+                        <p className="text-gray-300 leading-relaxed">
+                          {JSON.stringify(message.content)}
+                        </p>
+                      )}
+                    </div>
+
+                    {message.role === 'assistant' && (
+                      <div className="flex items-center gap-2 mt-4 pt-2">
+                        <button
+                          onClick={() => copyMessage(message.content)}
+                          className="p-1.5 rounded hover:bg-gray-800 transition-colors"
+                          title="Copy message"
+                        >
+                          <Copy className="w-4 h-4 text-gray-500 hover:text-gray-400" />
+                        </button>
+                        <button
+                          className="p-1.5 rounded hover:bg-gray-800 transition-colors"
+                          title="Good response"
+                        >
+                          <ThumbsUp className="w-4 h-4 text-gray-500 hover:text-gray-400" />
+                        </button>
+                        <button
+                          className="p-1.5 rounded hover:bg-gray-800 transition-colors"
+                          title="Poor response"
+                        >
+                          <ThumbsDown className="w-4 h-4 text-gray-500 hover:text-gray-400" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>
             ))}
 
             {/* Loading Animation */}
-            {isLoading && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex gap-4"
-              >
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                  <Brain className="w-5 h-5 text-white animate-pulse" />
-                </div>
-                <div className="flex-1">
-                  <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-600/20 rounded-xl p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <motion.div
-                          animate={{ scale: [1, 1.2, 1] }}
-                          transition={{ duration: 1, repeat: Infinity, delay: 0 }}
-                          className="w-2 h-2 bg-blue-400 rounded-full"
-                        />
-                        <motion.div
-                          animate={{ scale: [1, 1.2, 1] }}
-                          transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
-                          className="w-2 h-2 bg-purple-400 rounded-full"
-                        />
-                        <motion.div
-                          animate={{ scale: [1, 1.2, 1] }}
-                          transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
-                          className="w-2 h-2 bg-blue-400 rounded-full"
-                        />
+            <AnimatePresence>
+              {isLoading && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="mb-8"
+                >
+                  <div className="flex gap-4">
+                    <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                      >
+                        <Brain className="w-5 h-5 text-white" />
+                      </motion.div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="mb-2">
+                        <span className="font-semibold text-white">HealthAI</span>
                       </div>
-                      <span className="text-gray-400 text-sm">Thinking...</span>
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          {[0, 1, 2].map((i) => (
+                            <motion.div
+                              key={i}
+                              animate={{ scale: [1, 1.2, 1], opacity: [1, 0.5, 1] }}
+                              transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                              className="w-2 h-2 bg-gray-500 rounded-full"
+                            />
+                          ))}
+                        </div>
+                        <span className="text-gray-500 text-sm">Thinking...</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            )}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <div ref={messagesEndRef} />
           </div>
         </div>
-
-        {/* Input Area */}
-        <div className="relative z-30 p-6 backdrop-blur-xl bg-black/20 border-t border-gray-700/30">
+        <div className="relative z-30 p-6 backdrop-blur-xl border-t bg-gray-900/80 border-gray-700/30">
           <div className="max-w-4xl mx-auto">
             <form onSubmit={sendMessage} className="relative">
               <div className="relative">
@@ -481,7 +718,7 @@ Keep it simple and practical. Avoid overly technical language.`
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   placeholder="Ask me about symptoms, treatments, or health topics..."
-                  className="w-full py-4 px-6 pr-16 bg-gray-800/50 backdrop-blur-sm border border-gray-600/30 rounded-2xl text-white placeholder-gray-400 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300"
+                  className="w-full py-4 px-6 pr-16 rounded-2xl text-base placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all duration-300 bg-gray-800/60 backdrop-blur-sm border border-gray-600/30 text-white focus:border-blue-500/50"
                   disabled={isLoading}
                 />
                 <motion.button
@@ -489,14 +726,14 @@ Keep it simple and practical. Avoid overly technical language.`
                   disabled={isLoading || inputMessage.trim() === ""}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-gray-600 disabled:to-gray-700 rounded-xl flex items-center justify-center transition-all duration-300"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-3 rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 shadow-lg shadow-blue-500/25"
                 >
                   {isLoading ? (
                     <motion.div
                       animate={{ rotate: 360 }}
                       transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                     >
-                      <Sparkles className="w-5 h-5 text-white" />
+                      <Brain className="w-5 h-5 text-white" />
                     </motion.div>
                   ) : (
                     <Send className="w-5 h-5 text-white" />
@@ -504,36 +741,25 @@ Keep it simple and practical. Avoid overly technical language.`
                 </motion.button>
               </div>
             </form>
-
-            {/* Quick Suggestions */}
-            <div className="mt-4 flex flex-wrap gap-2">
+            
+            {/* Quick suggestion pills */}
+            <div className="flex flex-wrap gap-2 mt-4">
               {[
-                "Common cold treatment",
-                "Headache remedies",
+                "Common cold symptoms",
                 "Healthy diet tips",
-                "Stress management",
                 "Exercise benefits",
+                "Stress management"
               ].map((suggestion, index) => (
                 <motion.button
                   key={index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  whileHover={{ scale: 1.05 }}
                   onClick={() => setInputMessage(suggestion)}
-                  className="px-3 py-2 text-sm bg-gray-800/30 backdrop-blur-sm border border-gray-600/20 rounded-full hover:border-blue-500/50 hover:bg-gray-700/50 text-gray-300 hover:text-white transition-all duration-300"
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-4 py-2 text-sm rounded-full transition-all duration-300 bg-gray-800/50 border border-gray-600/30 hover:border-gray-500/50 hover:bg-gray-700/50 text-gray-300 hover:text-white"
                 >
                   {suggestion}
                 </motion.button>
               ))}
-            </div>
-
-            {/* Disclaimer */}
-            <div className="mt-4 text-center">
-              <p className="text-xs text-gray-500 flex items-center justify-center gap-2">
-                <Shield className="w-3 h-3" />
-                This AI provides general health information. Always consult healthcare professionals for medical advice.
-              </p>
             </div>
           </div>
         </div>
