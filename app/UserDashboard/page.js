@@ -2,7 +2,7 @@
 "use client";
 
 import React from 'react';
-import { useAuth } from '@clerk/nextjs';
+
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import HealthcareDashboard from '@/components/Healthcar';

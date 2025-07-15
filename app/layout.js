@@ -1,26 +1,12 @@
 "use client";
-import {
-  ClerkProvider,
-  SignInButton,
-  SignedIn,
-  SignedOut,
-  UserButton
-} from '@clerk/nextjs'
-import './globals.css'
-import { dark } from '@clerk/themes'
+import "./globals.css";
 
-export default function RootLayout({children,}) {
+export default function RootLayout({ children }) {
   return (
-    <ClerkProvider  
-      appearance={{
-      baseTheme: dark,
-    }}>
-      <html lang="en" webcrx="">
-        <body>
-          
-          {children}
-        </body>
-      </html>
-    </ClerkProvider>
-  )
+    <html lang="en">
+      <body>
+        {children}
+      </body>
+    </html>
+  );
 }
