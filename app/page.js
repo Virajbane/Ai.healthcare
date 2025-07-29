@@ -1,10 +1,11 @@
-// app/page.js (Your root home page)
-"use client";
-
+"use client"
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import HomePage from '@/components/Home'; // Your existing home page component
 import Header from '@/components/Header';
+import HomePage from '@/components/Home';
+
+// Mock HomePage component for demonstration
+
 
 export default function RootPage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -15,13 +16,14 @@ export default function RootPage() {
     const checkAuthAndRedirect = () => {
       console.log("Checking authentication on root page...");
       
-      const token = localStorage.getItem('token');
-      const user = localStorage.getItem('user');
+      // Check for authentication data
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const user = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
       
       if (token && user) {
         console.log("User is authenticated, redirecting to dashboard...");
         setIsAuthenticated(true);
-        router.replace('/UserDashboard');
+        router.push('/UserDashboard');
       } else {
         console.log("User is not authenticated, staying on home page");
         setIsAuthenticated(false);
@@ -30,8 +32,13 @@ export default function RootPage() {
       setIsLoading(false);
     };
 
-    // Small delay to ensure localStorage is available
-    setTimeout(checkAuthAndRedirect, 100);
+    // Ensure we're on the client side and localStorage is available
+    if (typeof window !== 'undefined') {
+      // Small delay to ensure localStorage is available
+      setTimeout(checkAuthAndRedirect, 100);
+    } else {
+      setIsLoading(false);
+    }
   }, [router]);
 
   if (isLoading) {
@@ -52,9 +59,10 @@ export default function RootPage() {
   }
 
   // If not authenticated, show home page
-  return 
-  <>
-  <Header/>
-  <HomePage />
-  </>;
+  return (
+    <>
+      <Header/>
+      <HomePage/>
+    </>
+  );
 }

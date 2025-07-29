@@ -38,6 +38,8 @@ export default function LoginPage() {
         // Store token and user data
         if (data.token) {
           localStorage.setItem("token", data.token);
+          // Also set cookie for server-side access
+          document.cookie = `token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; samesite=strict`;
           console.log("Token stored:", data.token);
         }
         if (data.user) {
@@ -47,25 +49,9 @@ export default function LoginPage() {
         
         console.log("Data stored, redirecting...");
         
-        // Multiple redirect approaches
-        try {
-          // Method 1: Use router.replace with a small delay
-          setTimeout(() => {
-            router.replace("/UserDashboard");
-          }, 100);
-          
-          // Method 2: Fallback with window.location after 2 seconds
-          setTimeout(() => {
-            if (window.location.pathname !== "/UserDashboard") {
-              console.log("Router redirect failed, using window.location");
-              window.location.href = "/UserDashboard";
-            }
-          }, 2000);
-          
-        } catch (routerError) {
-          console.log("Router failed immediately, using window.location:", routerError);
-          window.location.href = "/UserDashboard";
-        }
+        // Simple redirect approach
+        router.push("/UserDashboard");
+        
       } else {
         console.log("Login failed:", data.message);
         setError(data.message || "Login failed");

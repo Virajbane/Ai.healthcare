@@ -16,56 +16,91 @@ export default function UserDashboard() {
     const checkAuth = () => {
       console.log("Checking authentication...");
       
-      const token = localStorage.getItem('token');
-      const userData = localStorage.getItem('user');
-      
-      console.log("Token found:", !!token);
-      console.log("User data found:", !!userData);
-      
-      if (token && userData) {
-        try {
-          const parsedUser = JSON.parse(userData);
-          setUser(parsedUser);
-          setIsAuthenticated(true);
-          console.log("User authenticated:", parsedUser);
-        } catch (error) {
-          console.error("Error parsing user data:", error);
-          // Clear invalid data
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          router.push('/');
-        }
-      } else {
-        console.log("No authentication found, redirecting to login");
-        router.push('/');
+      // Ensure we're on the client side
+      if (typeof window === 'undefined') {
+        setIsLoading(false);
+        return;
       }
+
+      try {
+        const token = localStorage.getItem('token');
+        const userData = localStorage.getItem('user');
+        
+        console.log("Token found:", !!token);
+        console.log("User data found:", !!userData);
+        
+        if (token && userData) {
+          try {
+            const parsedUser = JSON.parse(userData);
+            setUser(parsedUser);
+            setIsAuthenticated(true);
+            console.log("User authenticated:", parsedUser.email, "Role:", parsedUser.role);
+          } catch (parseError) {
+            console.error("Error parsing user data:", parseError);
+            // Clear corrupted data and redirect
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setIsAuthenticated(false);
+            setUser(null);
+            router.push('/');
+            return;
+          }
+        } else {
+          console.log("No authentication found, redirecting to home");
+          setIsAuthenticated(false);
+          setUser(null);
+          router.push('/');
+          return;
+        }
+      } catch (error) {
+        console.error("Authentication check error:", error);
+        setIsAuthenticated(false);
+        setUser(null);
+        router.push('/');
+        return;
+      }
+      
       setIsLoading(false);
     };
 
-    // Small delay to ensure localStorage is available
-    setTimeout(checkAuth, 100);
+    // Small delay to ensure localStorage is available and prevent hydration issues
+    const timeoutId = setTimeout(checkAuth, 100);
+    
+    // Cleanup timeout on unmount
+    return () => clearTimeout(timeoutId);
   }, [router]);
 
+  // Show loading spinner while checking authentication
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center">
+        <div className="text-white text-xl flex items-center space-x-3">
+          <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+          <span>Loading dashboard...</span>
+        </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
+  // Show redirecting message while authentication is being processed
+  if (!isAuthenticated || !user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 flex items-center justify-center">
-        <div className="text-white text-xl">Redirecting to login...</div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center">
+        <div className="text-white text-xl flex items-center space-x-3">
+          <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+          <span>Redirecting...</span>
+        </div>
       </div>
     );
   }
 
+  // Render the authenticated dashboard
   return (
-    <>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
       <Header />
-      <HealthcareDashboard />
-    </>
+      <div className="pt-20"> {/* Add padding to account for fixed header */}
+        <HealthcareDashboard user={user} />
+      </div>
+    </div>
   );
 }
