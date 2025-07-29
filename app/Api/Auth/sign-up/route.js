@@ -1,3 +1,4 @@
+// app/api/auth/sign-up/route.js
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import User from "@/models/user";
@@ -8,7 +9,7 @@ export async function POST(req) {
     const { firstName, lastName, email, password, role } = await req.json();
 
     if (!email || !password || !role) {
-      return NextResponse.json({ message: "Missing fields" }, { status: 400 });
+      return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
     }
 
     await dbConnect();
@@ -28,7 +29,10 @@ export async function POST(req) {
       role,
     });
 
-    return NextResponse.json({ message: "User registered", userId: newUser._id }, { status: 201 });
+    return NextResponse.json({ 
+      message: "User registered successfully", 
+      userId: newUser._id 
+    }, { status: 201 });
 
   } catch (error) {
     console.error("Signup error:", error);
