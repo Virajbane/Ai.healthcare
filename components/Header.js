@@ -1,24 +1,77 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
 import { Activity, Brain, LogOut } from "lucide-react";
-import { useRouter, usePathname } from "next/navigation";
-import { useCustomAuth } from "../hooks/useCustomAuth"; // ⬅️ use your hook
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-const Header = () => {
-  const { user, isSignedIn, logout } = useCustomAuth();
+const Header = ({ isAuthenticated = false, user = null }) => {
   const router = useRouter();
-  const pathname = usePathname();
-
-  useEffect(() => {
-    if (isSignedIn && pathname === "/") {
-      router.push("/UserDashboard");
-    }
-  }, [isSignedIn, router, pathname]);
 
   const handleLogoClick = () => {
-    router.push(isSignedIn ? "/UserDashboard" : "/");
+    if (isAuthenticated && user) {
+      // Redirect based on user role
+      if (user.role === 'doctor') {
+        router.push("/DoctorDashboard");
+      } else {
+        router.push("/UserDashboard");
+      }
+    } else {
+      router.push("/");
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const sessionToken = localStorage.getItem('sessionToken');
+      
+      if (sessionToken) {
+        // Call logout API to deactivate session in database
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ sessionToken })
+        });
+      }
+      
+      // Clear local storage
+      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('user');
+      
+      // Redirect to home page
+      router.push('/');
+      
+      // Refresh the page to reset auth state
+      window.location.reload();
+      
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Even if API call fails, clear local data and redirect
+      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('user');
+      router.push('/');
+      window.location.reload();
+    }
+  };
+
+  const handleNavigateToUserpage = () => {
+    if (isAuthenticated) {
+      router.push("/Userpage");
+    } else {
+      // If not authenticated, redirect to sign up page
+      router.push("/signup");
+    }
+  };
+
+  const handleNavigateToAIChat = () => {
+    if (isAuthenticated) {
+      router.push("/Userpage?chat=bot");
+    } else {
+      // If not authenticated, redirect to sign up page
+      router.push("/signup");
+    }
   };
 
   return (
@@ -34,13 +87,13 @@ const Header = () => {
 
           <nav className="flex items-center space-x-6">
             <ul className="flex items-center space-x-4">
-              <li onClick={() => router.push("/Userpage")} className="cursor-pointer group">
+              <li onClick={handleNavigateToUserpage} className="cursor-pointer group">
                 <div className="flex flex-col items-center">
                   <Activity className="w-8 h-8 text-teal-500 group-hover:text-teal-700" />
                   <span className="text-xs text-gray-600 group-hover:text-teal-700">Doctors</span>
                 </div>
               </li>
-              <li onClick={() => router.push("/Userpage?chat=bot")} className="cursor-pointer group">
+              <li onClick={handleNavigateToAIChat} className="cursor-pointer group">
                 <div className="flex flex-col items-center">
                   <Brain className="w-8 h-8 text-blue-500 group-hover:text-blue-700" />
                   <span className="text-xs text-gray-600 group-hover:text-blue-700">AI Diagnosis</span>
@@ -48,20 +101,32 @@ const Header = () => {
               </li>
             </ul>
 
-            {!isSignedIn ? (
-              <Link href="/signup">
-                <button className="bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition">
-                  Sign In
-                </button>
-              </Link>
+            {!isAuthenticated ? (
+              <div className="flex items-center space-x-2">
+                <Link href="/login">
+                  <button className="bg-teal-600 text-white px-4 py-2 rounded-full hover:bg-teal-700 transition text-sm">
+                    Sign In
+                  </button>
+                </Link>
+                <Link href="/signup">
+                  <button className="bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition text-sm">
+                    Sign Up
+                  </button>
+                </Link>
+              </div>
             ) : (
-              <button
-                onClick={logout}
-                className="flex items-center text-sm text-white bg-red-500 px-4 py-2 rounded-full hover:bg-red-600 transition"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </button>
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-gray-300">
+                  Welcome, {user?.firstName || 'User'}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center text-sm text-white bg-red-500 px-4 py-2 rounded-full hover:bg-red-600 transition"
+                >
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </button>
+              </div>
             )}
           </nav>
         </div>

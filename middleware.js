@@ -1,52 +1,109 @@
+// middleware.js
 import { NextResponse } from 'next/server';
 
-export function middleware(request) {
-  // Get token from localStorage (client-side) or cookies
-  const token = request.cookies.get('token')?.value || 
-                request.headers.get('authorization')?.replace('Bearer ', '');
-
-  // Protected routes - only protect specific dashboard routes
-  const protectedPaths = ['/UserDashboard', '/Doctor', '/Userpage'];
+export async function middleware(request) {
+  const sessionToken = request.cookies.get('sessionToken')?.value;
+  
+  const protectedPaths = ['/UserDashboard', '/DoctorDashboard', '/Userpage'];
+  const authPaths = ['/login', '/signup'];
+  const publicPaths = ['/', '/api'];
+  
+  const pathname = request.nextUrl.pathname;
+  
   const isProtectedPath = protectedPaths.some(path => 
-    request.nextUrl.pathname.startsWith(path)
+    pathname.startsWith(path)
   );
-
-  // Public routes that should always be accessible
-  const publicPaths = ['/', '/login', '/signup', '/api'];
+  
+  const isAuthPath = authPaths.some(path => 
+    pathname.startsWith(path)
+  );
+  
   const isPublicPath = publicPaths.some(path => 
-    request.nextUrl.pathname.startsWith(path)
+    pathname.startsWith(path)
   );
 
-  // If accessing protected route without token, redirect to login
-  if (isProtectedPath && !token) {
-    console.log('Redirecting to login - no token found for protected path:', request.nextUrl.pathname);
+  // If accessing protected path without session token, redirect to login
+  if (isProtectedPath && !sessionToken) {
+    console.log('No session token found, redirecting to login');
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // If accessing protected route with token, allow access
-  if (isProtectedPath && token) {
-    console.log('Allowing access to protected path:', request.nextUrl.pathname);
-    return NextResponse.next();
+  // If session token exists, validate it with database
+  if (sessionToken) {
+    try {
+      // Call our session validation API
+      const validationResponse = await fetch(new URL('/api/auth/validate-session', request.url), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ sessionToken })
+      });
+
+      if (validationResponse.ok) {
+        const sessionData = await validationResponse.json();
+        const userRole = sessionData.user.role;
+        
+        console.log('Session validated, user role:', userRole, 'pathname:', pathname);
+
+        // If authenticated user visits auth pages, redirect to their dashboard
+        if (isAuthPath) {
+          if (userRole === 'doctor') {
+            console.log('Authenticated doctor on auth page, redirecting to doctor dashboard');
+            return NextResponse.redirect(new URL('/DoctorDashboard', request.url));
+          } else {
+            console.log('Authenticated patient on auth page, redirecting to user dashboard');
+            return NextResponse.redirect(new URL('/UserDashboard', request.url));
+          }
+        }
+
+        // Role-based redirect logic for protected paths
+        if (isProtectedPath) {
+          if (userRole === 'patient') {
+            // Patient trying to access doctor dashboard
+            if (pathname.startsWith('/DoctorDashboard')) {
+              console.log('Patient accessing doctor dashboard, redirecting to user dashboard');
+              return NextResponse.redirect(new URL('/UserDashboard', request.url));
+            }
+          } 
+          else if (userRole === 'doctor') {
+            // Doctor trying to access patient dashboard
+            if (pathname.startsWith('/UserDashboard') || pathname.startsWith('/Userpage')) {
+              console.log('Doctor accessing patient dashboard, redirecting to doctor dashboard');
+              return NextResponse.redirect(new URL('/DoctorDashboard', request.url));
+            }
+          }
+        }
+        
+      } else {
+        console.log('Session validation failed');
+        // Invalid session, redirect to login if accessing protected path
+        if (isProtectedPath) {
+          // Clear invalid session cookie
+          const response = NextResponse.redirect(new URL('/login', request.url));
+          response.cookies.set('sessionToken', '', { 
+            path: '/', 
+            expires: new Date(0) 
+          });
+          return response;
+        }
+      }
+      
+    } catch (error) {
+      console.log('Session validation error:', error);
+      // Error validating session, redirect to login if accessing protected path
+      if (isProtectedPath) {
+        return NextResponse.redirect(new URL('/login', request.url));
+      }
+    }
   }
 
-  // For public routes, always allow access
-  if (isPublicPath) {
-    return NextResponse.next();
-  }
-
-  // Default: allow access
+  // Allow access to all other paths
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/auth/validate-session).*)',
   ],
 };

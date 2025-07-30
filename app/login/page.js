@@ -33,24 +33,37 @@ export default function LoginPage() {
       console.log("Response data:", data);
       
       if (res.ok) {
-        console.log("Login successful, storing data...");
+        console.log("Login successful, session created in database");
         
-        // Store token and user data
-        if (data.token) {
-          localStorage.setItem("token", data.token);
-          // Also set cookie for server-side access
-          document.cookie = `token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; samesite=strict`;
-          console.log("Token stored:", data.token);
-        }
+        // Store minimal user data in localStorage (optional)
         if (data.user) {
-          localStorage.setItem("user", JSON.stringify(data.user));
-          console.log("User stored:", data.user);
+          localStorage.setItem("user", JSON.stringify({
+            id: data.user.id,
+            firstName: data.user.firstName,
+            lastName: data.user.lastName,
+            email: data.user.email,
+            role: data.user.role
+          }));
+          
+          // Store session token for client-side API calls
+          localStorage.setItem("sessionToken", data.sessionToken);
+          
+          console.log("User data stored locally, redirecting based on role...");
+        
+          // Redirect based on role with a small delay to ensure cookie is set
+          setTimeout(() => {
+            if (data.user.role === "doctor") {
+              console.log("Redirecting doctor to DoctorDashboard");
+              router.push("/DoctorDashboard");
+            } else if (data.user.role === "patient") {
+              console.log("Redirecting patient to UserDashboard");
+              router.push("/UserDashboard");
+            } else {
+              console.log("Unknown role, redirecting to UserDashboard");
+              router.push("/UserDashboard");
+            }
+          }, 200);
         }
-        
-        console.log("Data stored, redirecting...");
-        
-        // Simple redirect approach
-        router.push("/UserDashboard");
         
       } else {
         console.log("Login failed:", data.message);
