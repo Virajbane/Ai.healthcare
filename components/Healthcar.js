@@ -4,10 +4,12 @@ import {
   Heart, Calendar, Pill, FileText, User, Settings, MessageCircle, Upload, 
   ChevronRight, Menu, X, Home, Activity, Brain 
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 const HealthcareDashboard = () => {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const router = useRouter();
   const [healthMetrics, setHealthMetrics] = useState({
     heartRate: 0,
     bmi: 0,
@@ -32,6 +34,7 @@ const HealthcareDashboard = () => {
     { id: 'medications', label: 'Medications', icon: Pill },
     { id: 'lab-reports', label: 'Lab Reports', icon: FileText },
     { id: 'personal-info', label: 'Personal Info', icon: User },
+    { id: 'ai-chatbot', label: 'AI Chatbot', icon: Brain },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -140,7 +143,7 @@ const HealthcareDashboard = () => {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveSection(item.id)}
+                onClick={() => handleNavigationClick(item.id)}
                 className="w-full flex items-center justify-between bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-all duration-300 hover:translate-x-2"
               >
                 <div className="flex items-center">
@@ -336,6 +339,16 @@ const HealthcareDashboard = () => {
     </div>
   );
 
+  const handleNavigationClick = (sectionId) => {
+    if (sectionId === 'ai-chatbot') {
+      // Navigate to the dedicated AI chatbot page
+      router.push('/ai-chatbot');
+    } else {
+      // Handle other navigation items normally
+      setActiveSection(sectionId);
+    }
+  };
+
   const renderContent = () => {
     switch (activeSection) {
       case 'dashboard':
@@ -390,7 +403,7 @@ const HealthcareDashboard = () => {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveSection(item.id)}
+                    onClick={() => handleNavigationClick(item.id)}
                     className={`w-full flex items-center px-4 py-3 mb-2 rounded-xl transition-all duration-300 ${
                       activeSection === item.id 
                         ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg transform scale-105' 
@@ -442,7 +455,7 @@ const HealthcareDashboard = () => {
                     <button
                       key={item.id}
                       onClick={() => {
-                        setActiveSection(item.id);
+                        handleNavigationClick(item.id);
                         setSidebarOpen(false);
                       }}
                       className={`w-full flex items-center  px-4 py-3 mb-2 rounded-xl transition-all duration-300 ${

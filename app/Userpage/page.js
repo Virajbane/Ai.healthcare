@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import Header from "@/components/Header";
@@ -10,21 +10,19 @@ import UserChat from "@/components/Userchat";
 export default function UserPage() {
   const searchParams = useSearchParams();
   const showBot = searchParams.get("chat") === "bot";
-  const { user, isLoaded } = useUser();
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoaded || !user) return;
+    // Simulate loading check
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1000);
 
-    const role = user.publicMetadata?.role;
+    return () => clearTimeout(timer);
+  }, []);
 
-    // 🚀 Redirect doctor to /doctor
-    if (role === "doctor") {
-      router.replace("/Doctor");
-    }
-  }, [user, isLoaded, router]);
-
-  if (!isLoaded) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-900">
         <div className="text-center">

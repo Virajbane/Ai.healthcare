@@ -67,7 +67,7 @@ const Sidebar = ({
         >
           <div className="flex flex-col h-full">
             {/* Sidebar Header */}
-            <div className="p-3 border-b border-gray-800">
+            <div className="p-3 mt-20 border-b border-gray-800">
               <motion.button
                 onClick={onNewChat}
                 whileHover={{ scale: 1.01 }}
