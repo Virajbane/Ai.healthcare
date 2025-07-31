@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { motion } from 'framer-motion';
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Brain } from "lucide-react";
 
 export default function LoginPage() {
@@ -78,7 +79,25 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4">
+    <motion.div 
+      className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4"
+      initial={{ 
+        opacity: 0,
+        y: 20
+      }}
+      animate={{ 
+        opacity: 1,
+        y: 0
+      }}
+      exit={{ 
+        opacity: 0,
+        y: -20
+      }}
+      transition={{ 
+        duration: 1.2,
+        ease: "easeInOut"
+      }}
+    >
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-4 -left-4 w-72 h-72 bg-teal-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse"></div>
@@ -180,6 +199,6 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
