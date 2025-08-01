@@ -3,16 +3,151 @@ import React, { useState, useEffect } from 'react';
 import { 
   Heart, Calendar, Pill, FileText, User, Settings, MessageCircle, Upload, 
   ChevronRight, Menu, X, Home, Activity, Brain, Plus, Video, Stethoscope,
-  Clock, AlertCircle, CheckCircle, Phone
+  Clock, AlertCircle, CheckCircle, Phone, Bell
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { appointmentApi } from '@/lib/appointmentApi';
 import AppointmentModal from './AppointmentModal';
+
+// Real API functions that fetch data from database
+const healthApi = {
+  getHealthMetrics: async (userId) => {
+    try {
+      const response = await fetch(`/api/health-metrics?userId=${userId}`);
+      if (!response.ok) throw new Error('Failed to fetch health metrics');
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching health metrics:', error);
+      return { metrics: {} };
+    }
+  },
+  updateHealthMetrics: async (userId, metrics) => {
+    try {
+      const response = await fetch(`/api/health-metrics`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, metrics })
+      });
+      if (!response.ok) throw new Error('Failed to update health metrics');
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating health metrics:', error);
+      throw error;
+    }
+  }
+};
+
+const medicationApi = {
+  getMedications: async (userId) => {
+    try {
+      const response = await fetch(`/api/medications?userId=${userId}`);
+      if (!response.ok) throw new Error('Failed to fetch medications');
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching medications:', error);
+      return { medications: [] };
+    }
+  },
+  addMedication: async (medicationData) => {
+    try {
+      const response = await fetch('/api/medications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(medicationData)
+      });
+      if (!response.ok) throw new Error('Failed to add medication');
+      return await response.json();
+    } catch (error) {
+      console.error('Error adding medication:', error);
+      throw error;
+    }
+  }
+};
+
+const labReportApi = {
+  getLabReports: async (userId) => {
+    try {
+      const response = await fetch(`/api/lab-reports?userId=${userId}`);
+      if (!response.ok) throw new Error('Failed to fetch lab reports');
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching lab reports:', error);
+      return { reports: [] };
+    }
+  }
+};
+
+const appointmentApi = {
+  getAppointments: async (userId, role) => {
+    try {
+      const response = await fetch(`/api/appointments?userId=${userId}&role=${role}`);
+      if (!response.ok) throw new Error('Failed to fetch appointments');
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+      return { appointments: [] };
+    }
+  },
+  getUpcomingAppointments: async (userId, role, limit) => {
+    try {
+      const response = await fetch(`/api/appointments/upcoming?userId=${userId}&role=${role}&limit=${limit}`);
+      if (!response.ok) throw new Error('Failed to fetch upcoming appointments');
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching upcoming appointments:', error);
+      return { appointments: [] };
+    }
+  },
+  createAppointment: async (appointmentData) => {
+    try {
+      const response = await fetch('/api/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(appointmentData)
+      });
+      if (!response.ok) throw new Error('Failed to create appointment');
+      return await response.json();
+    } catch (error) {
+      console.error('Error creating appointment:', error);
+      throw error;
+    }
+  },
+  updateAppointment: async (id, data) => {
+    try {
+      const response = await fetch(`/api/appointments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) throw new Error('Failed to update appointment');
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating appointment:', error);
+      throw error;
+    }
+  },
+  deleteAppointment: async (id) => {
+    try {
+      const response = await fetch(`/api/appointments/${id}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) throw new Error('Failed to delete appointment');
+      return await response.json();
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
+      throw error;
+    }
+  }
+};
 
 const HealthcareDashboard = ({ user }) => {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
+  
+  // Loading and error states
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+  const [userError, setUserError] = useState(null);
+  
   const [healthMetrics, setHealthMetrics] = useState({
     heartRate: 0,
     bmi: 0,
@@ -37,6 +172,12 @@ const HealthcareDashboard = ({ user }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
+  
+  // Additional data states
+  const [medications, setMedications] = useState([]);
+  const [labReports, setLabReports] = useState([]);
+  const [isLoadingMedications, setIsLoadingMedications] = useState(false);
+  const [isLoadingLabReports, setIsLoadingLabReports] = useState(false);
 
   const navigationItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -48,37 +189,82 @@ const HealthcareDashboard = ({ user }) => {
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
-  // Animate health metrics on load
+  // Function to get current user from database
+  const getCurrentUser = async () => {
+    try {
+      const response = await fetch('/api/auth/current-user');
+      if (!response.ok) throw new Error('Failed to fetch current user');
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+      return null;
+    }
+  };
+
+  // Load user data on component mount
   useEffect(() => {
-    const targets = { heartRate: 72, bmi: 24.5, bloodSugar: 95 };
-    
-    Object.keys(targets).forEach(key => {
-      let current = 0;
-      const target = targets[key];
-      const increment = target / 30;
-      
-      const timer = setInterval(() => {
-        current += increment;
-        if (current >= target) {
-          current = target;
-          clearInterval(timer);
+    const loadUserData = async () => {
+      setIsLoadingUser(true);
+      try {
+        const userData = await getCurrentUser();
+        if (userData) {
+          console.log('User loaded:', userData);
+        } else {
+          setUserError('Failed to load user data');
         }
-        setHealthMetrics(prev => ({
-          ...prev,
-          [key]: key === 'bmi' ? current.toFixed(1) : Math.floor(current)
-        }));
-      }, 50);
-    });
-    
-    setTimeout(() => {
-      setHealthMetrics(prev => ({ ...prev, bloodPressure: '120/80' }));
-    }, 1000);
-  }, []);
+      } catch (error) {
+        setUserError('Error loading user data');
+        console.error('Error loading user:', error);
+      } finally {
+        setIsLoadingUser(false);
+      }
+    };
+
+    if (!user) {
+      loadUserData();
+    } else {
+      setIsLoadingUser(false);
+    }
+  }, [user]);
+
+  // Load health metrics from database
+  useEffect(() => {
+    const loadHealthMetrics = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const response = await healthApi.getHealthMetrics(user.id);
+        if (response.metrics) {
+          setHealthMetrics(response.metrics);
+        }
+      } catch (error) {
+        console.error('Error loading health metrics:', error);
+      }
+    };
+
+    if (user?.id) {
+      loadHealthMetrics();
+    }
+  }, [user?.id]);
 
   // Load appointments when appointments section is active
   useEffect(() => {
     if (activeSection === 'appointments' && user?.id) {
       loadAppointments();
+    }
+  }, [activeSection, user?.id]);
+
+  // Load medications when medications section is active
+  useEffect(() => {
+    if (activeSection === 'medications' && user?.id) {
+      loadMedications();
+    }
+  }, [activeSection, user?.id]);
+
+  // Load lab reports when lab-reports section is active
+  useEffect(() => {
+    if (activeSection === 'lab-reports' && user?.id) {
+      loadLabReports();
     }
   }, [activeSection, user?.id]);
 
@@ -96,6 +282,34 @@ const HealthcareDashboard = ({ user }) => {
       console.error('Error loading appointments:', error);
     } finally {
       setIsLoadingAppointments(false);
+    }
+  };
+
+  const loadMedications = async () => {
+    if (!user?.id) return;
+    
+    setIsLoadingMedications(true);
+    try {
+      const response = await medicationApi.getMedications(user.id);
+      setMedications(response.medications || []);
+    } catch (error) {
+      console.error('Error loading medications:', error);
+    } finally {
+      setIsLoadingMedications(false);
+    }
+  };
+
+  const loadLabReports = async () => {
+    if (!user?.id) return;
+    
+    setIsLoadingLabReports(true);
+    try {
+      const response = await labReportApi.getLabReports(user.id);
+      setLabReports(response.reports || []);
+    } catch (error) {
+      console.error('Error loading lab reports:', error);
+    } finally {
+      setIsLoadingLabReports(false);
     }
   };
 
@@ -159,24 +373,9 @@ const HealthcareDashboard = ({ user }) => {
 
   const handleFeedbackSubmit = (e) => {
     e.preventDefault();
-    alert('Thank you for your feedback! We\'ll get back to you soon.');
+    console.log('Feedback submitted:', feedbackForm);
     setFeedbackForm({ subject: 'General Inquiry', message: '' });
   };
-
-  const mockAppointments = [
-    { date: 'Jul 15', doctor: 'Dr. Johnson - Cardiology', time: '10:30 AM', type: 'Regular Checkup' },
-    { date: 'Jul 22', doctor: 'Dr. Smith - General Medicine', time: '2:00 PM', type: 'Follow-up' }
-  ];
-
-  const medications = [
-    { name: 'Metformin', dosage: '500mg', frequency: 'Twice daily', status: 'ok', daysLeft: '7 days left' },
-    { name: 'Lisinopril', dosage: '10mg', frequency: 'Once daily', status: 'due', daysLeft: 'Refill needed' }
-  ];
-
-  const recentFiles = [
-    { name: 'Blood Test Results', date: 'June 28, 2025' },
-    { name: 'X-Ray Report', date: 'June 15, 2025' }
-  ];
 
   const renderDashboard = () => (
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -248,18 +447,19 @@ const HealthcareDashboard = ({ user }) => {
           <h3 className="text-xl font-semibold">Recent Activity</h3>
         </div>
         <div className="space-y-4">
-          <div className="bg-white/5 rounded-xl p-4">
-            <p className="text-white font-medium">Lab results uploaded</p>
-            <p className="text-sm text-gray-400">2 hours ago</p>
-          </div>
-          <div className="bg-white/5 rounded-xl p-4">
-            <p className="text-white font-medium">Appointment scheduled</p>
-            <p className="text-sm text-gray-400">1 day ago</p>
-          </div>
-          <div className="bg-white/5 rounded-xl p-4">
-            <p className="text-white font-medium">Medication reminder</p>
-            <p className="text-sm text-gray-400">2 days ago</p>
-          </div>
+          {upcomingAppointments.length > 0 ? (
+            upcomingAppointments.slice(0, 3).map((apt, index) => (
+              <div key={apt._id || index} className="bg-white/5 rounded-xl p-4">
+                <p className="text-white font-medium">Appointment with {apt.doctorName || 'Doctor'}</p>
+                <p className="text-sm text-gray-400">{new Date(apt.appointmentDate).toLocaleDateString()}</p>
+              </div>
+            ))
+          ) : (
+            <div className="bg-white/5 rounded-xl p-4">
+              <p className="text-white font-medium">No recent activity</p>
+              <p className="text-sm text-gray-400">Schedule your first appointment</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -346,23 +546,38 @@ const HealthcareDashboard = ({ user }) => {
     <div className="space-y-6">
       <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
         <h3 className="text-2xl font-bold mb-6">Medication Tracker</h3>
-        <div className="space-y-4">
-          {medications.map((med, index) => (
-            <div key={index} className="flex items-center justify-between bg-white/5 rounded-xl p-4">
-              <div className="flex-1">
-                <h4 className="font-semibold text-white">{med.name}</h4>
-                <p className="text-sm text-gray-400">{med.dosage} • {med.frequency}</p>
+        
+        {isLoadingMedications ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            <span className="ml-3 text-white">Loading medications...</span>
+          </div>
+        ) : medications.length === 0 ? (
+          <div className="text-center py-8">
+            <Pill className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-400">No medications found</p>
+            <p className="text-sm text-gray-500 mt-2">Add your first medication to start tracking</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {medications.map((med, index) => (
+              <div key={med._id || index} className="flex items-center justify-between bg-white/5 rounded-xl p-4">
+                <div className="flex-1">
+                  <h4 className="font-semibold text-white">{med.name}</h4>
+                  <p className="text-sm text-gray-400">{med.dosage} • {med.frequency}</p>
+                </div>
+                <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  med.status === 'ok' || med.status === 'active'
+                    ? 'bg-gradient-to-r from-green-400 to-green-600 text-white' 
+                    : 'bg-gradient-to-r from-red-400 to-red-600 text-white'
+                }`}>
+                  {med.daysLeft || med.status}
+                </div>
               </div>
-              <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                med.status === 'ok' 
-                  ? 'bg-gradient-to-r from-green-400 to-green-600 text-white' 
-                  : 'bg-gradient-to-r from-red-400 to-red-600 text-white'
-              }`}>
-                {med.daysLeft}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
+        
         <button className="w-full mt-4 bg-gradient-to-r from-green-400 to-green-600 text-white py-3 rounded-xl font-semibold">
           Add New Medication
         </button>
@@ -388,15 +603,40 @@ const HealthcareDashboard = ({ user }) => {
             onChange={handleFileUpload}
           />
         </div>
-        <div className="space-y-3">
-          <h4 className="text-lg font-semibold mb-4">Recent Reports</h4>
-          {recentFiles.map((file, index) => (
-            <div key={index} className="bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-all duration-300 cursor-pointer">
-              <div className="font-semibold text-white">{file.name}</div>
-              <div className="text-sm text-gray-400">{file.date}</div>
-            </div>
-          ))}
-        </div>
+        
+        {isLoadingLabReports ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            <span className="ml-3 text-white">Loading lab reports...</span>
+          </div>
+        ) : labReports.length === 0 ? (
+          <div className="text-center py-8">
+            <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-400">No lab reports found</p>
+            <p className="text-sm text-gray-500 mt-2">Upload your first lab report to get started</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <h4 className="text-lg font-semibold mb-4">Recent Reports</h4>
+            {labReports.map((report, index) => (
+              <div key={report._id || index} className="bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-all duration-300 cursor-pointer">
+                <div className="font-semibold text-white">{report.testType || report.name}</div>
+                <div className="text-sm text-gray-400">
+                  {report.testDate ? new Date(report.testDate).toLocaleDateString() : report.date}
+                </div>
+                {report.status && (
+                  <div className={`inline-block px-2 py-1 rounded-full text-xs font-semibold mt-2 ${
+                    report.status === 'completed' || report.status === 'reviewed'
+                      ? 'bg-green-500/20 text-green-400'
+                      : 'bg-yellow-500/20 text-yellow-400'
+                  }`}>
+                    {report.status}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -495,6 +735,20 @@ const HealthcareDashboard = ({ user }) => {
         return renderLabReports();
       case 'personal-info':
         return renderPersonalInfo();
+      case 'ai-chatbot':
+        return (
+          <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
+            <h3 className="text-2xl font-bold mb-6">AI Health Assistant</h3>
+            <div className="text-center py-12">
+              <Brain className="w-16 h-16 text-purple-400 mx-auto mb-4" />
+              <h4 className="text-xl font-semibold text-gray-300 mb-2">AI-Powered Health Insights</h4>
+              <p className="text-gray-400 mb-6">Get personalized health recommendations and answers to your questions</p>
+              <button className="bg-gradient-to-r from-purple-400 to-purple-600 text-white px-6 py-3 rounded-lg hover:shadow-lg hover:shadow-purple-500/30 transition-all duration-300">
+                Start Chat
+              </button>
+            </div>
+          </div>
+        );
       case 'settings':
         return renderSettings();
       default:
@@ -503,150 +757,163 @@ const HealthcareDashboard = ({ user }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 text-white">
-      {/* Mobile Navigation Bar - Fixed at top */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-lg border-b border-white/10">
-        <div className="flex items-center justify-between px-4 py-3">
-          <button 
-            onClick={() => setSidebarOpen(true)}
-            className="text-white hover:text-gray-300 transition-colors duration-200"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-          <h1 className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
-            HealthAI
-          </h1>
-          <div className="w-6 h-6"></div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white">
+      {/* Loading State */}
+      {isLoadingUser && (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-white">Loading healthcare dashboard...</p>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Layout Container */}
-      <div className="flex pt-16 lg:pt-0 min-h-screen">
-        {/* Desktop Sidebar - Fixed position */}
-        <div className="hidden lg:block fixed left-0 top-0 bottom-0 w-64 bg-black/50 backdrop-blur-lg border-r border-white/10 z-30">
-          <div className="flex flex-col mt-20 h-full">
-            {/* Logo */}
-            <div className="flex items-center justify-center p-6 border-b border-white/10">
-              
+      {/* Error State */}
+      {userError && (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-white mb-2">Error Loading Dashboard</h2>
+            <p className="text-gray-400 mb-4">{userError}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="bg-gradient-to-r from-blue-400 to-blue-600 text-white px-6 py-2 rounded-lg hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Dashboard */}
+      {!isLoadingUser && !userError && (
+        <>
+          {/* Mobile Sidebar Overlay */}
+          {sidebarOpen && (
+            <div 
+              className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+
+          {/* Sidebar */}
+          <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white/10 backdrop-blur-lg border-r border-white/10 transform transition-transform duration-300 lg:translate-x-0 ${
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}>
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center">
+                  <Heart className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-lg">HealthCare AI</h2>
+                  <p className="text-xs text-gray-400">
+                    {user ? `${user.firstName} ${user.lastName} Portal` : 'Patient Portal'}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSidebarOpen(false)}
+                className="lg:hidden text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            
-            {/* Navigation */}
-            <nav className="flex-1 mt-10 px-4 py-6 overflow-y-auto">
+
+            <nav className="p-4 space-y-2">
               {navigationItems.map((item) => {
                 const Icon = item.icon;
                 return (
                   <button
                     key={item.id}
-                    onClick={() => handleNavigationClick(item.id)}
-                    className={`w-full flex items-center px-4 py-3 mb-2 rounded-xl transition-all duration-300 ${
-                      activeSection === item.id 
-                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg transform scale-105' 
-                        : 'text-gray-400 hover:text-white hover:bg-white/10 hover:transform hover:scale-105'
+                    onClick={() => {
+                      setActiveSection(item.id);
+                      setSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${
+                      activeSection === item.id
+                        ? 'bg-gradient-to-r from-green-400 to-green-600 text-white shadow-lg shadow-green-500/30'
+                        : 'text-gray-300 hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <Icon className="w-5 h-5 mr-3" />
+                    <Icon className="w-5 h-5" />
                     <span className="font-medium">{item.label}</span>
                   </button>
                 );
               })}
             </nav>
-          </div>
-        </div>
 
-        {/* Mobile Sidebar - Overlay */}
-        <div className={`lg:hidden fixed inset-0 z-40 transition-opacity duration-300 ${
-          sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}>
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setSidebarOpen(false)}
-          />
-          
-          {/* Sidebar */}
-          <div className={`absolute left-0 top-0 bottom-0 w-64 bg-black/90 backdrop-blur-lg border-r border-white/10 transform transition-transform duration-300 ${
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}>
-            <div className="flex flex-col h-full">
-              {/* Header */}
-              <div className="flex items-center justify-between p-4 border-b border-white/10">
-                <h2 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
-                  HealthAI
-                </h2>
-                <button 
-                  onClick={() => setSidebarOpen(false)}
-                  className="text-white hover:text-gray-300 transition-colors duration-200"
-                >
-                  <X className="w-6 h-6" />
-                </button>
+            <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
+              <div className="flex items-center space-x-3 p-3 bg-white/5 rounded-xl">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center">
+                  <span className="text-sm font-semibold text-white">
+                    {user ? `${user.firstName?.[0]}${user.lastName?.[0]}` : 'PT'}
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-white">
+                    {user ? `${user.firstName} ${user.lastName}` : 'Patient'}
+                  </p>
+                  <p className="text-xs text-gray-400">{user?.email || 'email@example.com'}</p>
+                </div>
               </div>
-              
-              {/* Navigation */}
-              <nav className="flex-1  px-4 py-6 overflow-y-auto">
-                {navigationItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        handleNavigationClick(item.id);
-                        setSidebarOpen(false);
-                      }}
-                      className={`w-full flex items-center  px-4 py-3 mb-2 rounded-xl transition-all duration-300 ${
-                        activeSection === item.id 
-                          ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg' 
-                          : 'text-gray-400 hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      <Icon className="w-5 h-5 mr-3" />
-                      <span className="font-medium">{item.label}</span>
-                    </button>
-                  );
-                })}
-              </nav>
             </div>
           </div>
-        </div>
 
-        {/* Main Content */}
-        <div className="flex-1 lg:ml-64">
-          <div className="p-4 lg:p-6 max-w-full overflow-hidden">
-            {/* Welcome Section */}
-            <div className="mb-8 mt-32">
-              <h1 className="text-2xl lg:text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent mb-2">
-                {activeSection === 'dashboard' ? 'Welcome back, Sarah!' : 
-                 navigationItems.find(item => item.id === activeSection)?.label || 'Dashboard'}
-              </h1>
-              <p className="text-gray-300 text-sm lg:text-base">
-                {activeSection === 'dashboard' ? "Here's your health overview for today" : 
-                 `Manage your ${navigationItems.find(item => item.id === activeSection)?.label.toLowerCase()}`}
-              </p>
-            </div>
+          {/* Main Content */}
+          <div className="lg:ml-64">
+            {/* Header */}
+            <header className="bg-white/5 backdrop-blur-lg border-b border-white/10 p-4 lg:p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={() => setSidebarOpen(true)}
+                    className="lg:hidden text-gray-400 hover:text-white"
+                  >
+                    <Menu className="w-6 h-6" />
+                  </button>
+                  <div>
+                    <h1 className="text-2xl font-bold">
+                      {navigationItems.find(item => item.id === activeSection)?.label || 'Dashboard'}
+                    </h1>
+                    <p className="text-gray-400">
+                      {user ? `Welcome back, ${user.firstName} ${user.lastName}` : 'Welcome back'}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-4">
+                  <button className="relative p-2 text-gray-400 hover:text-white">
+                    <Bell className="w-5 h-5" />
+                    <div className="absolute top-0 right-0 w-2 h-2 bg-red-400 rounded-full"></div>
+                  </button>
+                  <button className="relative p-2 text-gray-400 hover:text-white">
+                    <MessageCircle className="w-5 h-5" />
+                    <div className="absolute top-0 right-0 w-2 h-2 bg-blue-400 rounded-full"></div>
+                  </button>
+                </div>
+              </div>
+            </header>
 
-            {/* Content */}
-            <div className="min-h-0">
+            {/* Page Content */}
+            <main className="p-4 lg:p-6">
               {renderContent()}
-            </div>
+            </main>
           </div>
-        </div>
-      </div>
-      
-      {/* Appointment Modal */}
-      <AppointmentModal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setSelectedAppointment(null);
-        }}
-        onSubmit={selectedAppointment ? handleUpdateAppointment : handleCreateAppointment}
-        appointment={selectedAppointment}
-        userType="patient"
-        doctors={[
-          { id: 1, name: 'Dr. Johnson', specialty: 'Cardiology' },
-          { id: 2, name: 'Dr. Smith', specialty: 'General Medicine' },
-          { id: 3, name: 'Dr. Davis', specialty: 'Dermatology' }
-        ]}
-      />
+
+          {/* Appointment Modal */}
+          <AppointmentModal
+            isOpen={isModalOpen}
+            onClose={() => {
+              setIsModalOpen(false);
+              setSelectedAppointment(null);
+            }}
+            onSubmit={selectedAppointment ? handleUpdateAppointment : handleCreateAppointment}
+            appointment={selectedAppointment}
+            userType="patient"
+          />
+        </>
+      )}
     </div>
   );
 };
