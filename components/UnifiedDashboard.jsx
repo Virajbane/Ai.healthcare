@@ -29,8 +29,9 @@ import {
   formatDate,
   formatTime,
   getTimeAgo,
-  getStatusColor 
-} from '../utils/api';
+  getStatusColor,
+  determineUserType
+} from '../lib/api';
 
 // Import section components
 import PatientDashboard from './patient/PatientDashboard';
@@ -128,19 +129,7 @@ const UnifiedDashboard = ({ initialUser = null, userType = null }) => {
     }
   }, [user?.id]);
 
-  const determineUserType = (userData) => {
-    // Logic to determine if user is a patient or doctor
-    // This could be based on role field, email domain, or other criteria
-    if (userData.role === 'doctor' || userData.userType === 'doctor') {
-      return 'doctor';
-    }
-    if (userData.role === 'patient' || userData.userType === 'patient') {
-      return 'patient';
-    }
-    
-    // Default fallback - could also check email domain or other indicators
-    return userData.email?.includes('@hospital.') || userData.email?.includes('@clinic.') ? 'doctor' : 'patient';
-  };
+  // Using the imported determineUserType function
 
   const loadNotifications = async () => {
     if (!user?.id) return;

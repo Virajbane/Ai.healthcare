@@ -3,7 +3,7 @@ import {
   Heart, Calendar, Pill, FileText, User, Activity, Brain, 
   ChevronRight, Plus, Video, Stethoscope, AlertCircle, CheckCircle 
 } from 'lucide-react';
-import { healthApi, appointmentApi, medicationApi } from '../../utils/api';
+import { healthApi, appointmentApi, medicationApi } from '../../lib/api';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
 const PatientOverview = ({ user, onAppointmentModalOpen, onSectionChange }) => {

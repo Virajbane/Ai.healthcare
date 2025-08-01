@@ -3,13 +3,15 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import HealthcareDashboard from '@/components/Healthcar';
+// Import the wrapper component for gradual migration
+import HealthcareWrapper from '@/components/HealthcareWrapper';
 import Header from '@/components/Header';
 
 export default function UserDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [useUnifiedDashboard, setUseUnifiedDashboard] = useState(false); // Toggle for new features
   const router = useRouter();
 
   useEffect(() => {
@@ -35,6 +37,12 @@ export default function UserDashboard() {
             setUser(parsedUser);
             setIsAuthenticated(true);
             console.log("User authenticated:", parsedUser.email, "Role:", parsedUser.role);
+            
+            // Check if user has opted into new dashboard features
+            const unifiedPreference = localStorage.getItem('useUnifiedDashboard');
+            if (unifiedPreference === 'true') {
+              setUseUnifiedDashboard(true);
+            }
           } catch (parseError) {
             console.error("Error parsing user data:", parseError);
             // Clear corrupted data and redirect
@@ -58,49 +66,61 @@ export default function UserDashboard() {
         setUser(null);
         router.push('/');
         return;
+      } finally {
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     };
 
-    // Small delay to ensure localStorage is available and prevent hydration issues
-    const timeoutId = setTimeout(checkAuth, 100);
-    
-    // Cleanup timeout on unmount
-    return () => clearTimeout(timeoutId);
+    checkAuth();
   }, [router]);
 
-  // Show loading spinner while checking authentication
+  const toggleUnifiedDashboard = () => {
+    const newValue = !useUnifiedDashboard;
+    setUseUnifiedDashboard(newValue);
+    localStorage.setItem('useUnifiedDashboard', newValue.toString());
+  };
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center">
-        <div className="text-white text-xl flex items-center space-x-3">
-          <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-          <span>Loading dashboard...</span>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
+        <div className="text-white text-center">
+          <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+          <p>Loading dashboard...</p>
         </div>
       </div>
     );
   }
 
-  // Show redirecting message while authentication is being processed
   if (!isAuthenticated || !user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center">
-        <div className="text-white text-xl flex items-center space-x-3">
-          <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-          <span>Redirecting...</span>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center">
+        <div className="text-white text-center">
+          <p>Redirecting to login...</p>
         </div>
       </div>
     );
   }
 
-  // Render the authenticated dashboard
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900">
+    <>
       <Header />
-      <div className="pt-20"> {/* Add padding to account for fixed header */}
-        <HealthcareDashboard user={user} />
+      
+      {/* Feature Toggle for Enhanced Dashboard */}
+      <div className="fixed top-4 right-4 z-50">
+        <button
+          onClick={toggleUnifiedDashboard}
+          className="bg-gradient-to-r from-blue-400 to-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300"
+        >
+          {useUnifiedDashboard ? 'Classic View' : 'Enhanced View'}
+        </button>
       </div>
-    </div>
+
+      {/* Dashboard Content */}
+      <HealthcareWrapper 
+        user={user} 
+        useUnified={useUnifiedDashboard}
+        forceDashboardType="patient"
+      />
+    </>
   );
 }

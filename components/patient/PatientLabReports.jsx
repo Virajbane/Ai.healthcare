@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Upload, Download, Eye } from 'lucide-react';
-import { labReportApi } from '../../utils/api';
+import { labReportApi } from '../../lib/api';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
 const PatientLabReports = ({ user }) => {

@@ -3,7 +3,7 @@ import {
   Calendar, Plus, Video, Stethoscope, Clock, AlertCircle, 
   CheckCircle, X, Edit, Search, Filter 
 } from 'lucide-react';
-import { appointmentApi, getStatusColor, formatDate } from '../../utils/api';
+import { appointmentApi, getStatusColor, formatDate } from '../../lib/api';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
 const PatientAppointments = ({ user, onAppointmentModalOpen }) => {

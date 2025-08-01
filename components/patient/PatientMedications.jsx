@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Pill, Plus, Clock, CheckCircle, AlertCircle } from 'lucide-react';
-import { medicationApi } from '../../utils/api';
+import { medicationApi } from '../../lib/api';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
 const PatientMedications = ({ user }) => {

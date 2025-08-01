@@ -12,7 +12,7 @@ import {
   getStatusColor, 
   getTimeAgo,
   formatDate 
-} from '../../utils/api';
+} from '../../lib/api';
 import LoadingSpinner from '../shared/LoadingSpinner';
 
 const DoctorDashboard = ({ user, activeSection, onAppointmentModalOpen, onSectionChange }) => {
