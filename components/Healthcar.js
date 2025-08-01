@@ -2,11 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Heart, Calendar, Pill, FileText, User, Settings, MessageCircle, Upload, 
-  ChevronRight, Menu, X, Home, Activity, Brain 
+  ChevronRight, Menu, X, Home, Activity, Brain, Plus, Video, Stethoscope,
+  Clock, AlertCircle, CheckCircle, Phone
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { appointmentApi } from '@/lib/appointmentApi';
+import AppointmentModal from './AppointmentModal';
 
-const HealthcareDashboard = () => {
+const HealthcareDashboard = ({ user }) => {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
@@ -27,6 +30,13 @@ const HealthcareDashboard = () => {
     subject: 'General Inquiry',
     message: ''
   });
+
+  // Appointment states
+  const [appointments, setAppointments] = useState([]);
+  const [upcomingAppointments, setUpcomingAppointments] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
 
   const navigationItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -65,6 +75,77 @@ const HealthcareDashboard = () => {
     }, 1000);
   }, []);
 
+  // Load appointments when appointments section is active
+  useEffect(() => {
+    if (activeSection === 'appointments' && user?.id) {
+      loadAppointments();
+    }
+  }, [activeSection, user?.id]);
+
+  const loadAppointments = async () => {
+    if (!user?.id) return;
+    
+    setIsLoadingAppointments(true);
+    try {
+      const response = await appointmentApi.getAppointments(user.id, 'patient');
+      setAppointments(response.appointments || []);
+      
+      const upcomingResponse = await appointmentApi.getUpcomingAppointments(user.id, 'patient', 3);
+      setUpcomingAppointments(upcomingResponse.appointments || []);
+    } catch (error) {
+      console.error('Error loading appointments:', error);
+    } finally {
+      setIsLoadingAppointments(false);
+    }
+  };
+
+  const handleCreateAppointment = async (appointmentData) => {
+    if (!user?.id) return;
+    
+    try {
+      const appointmentWithUser = {
+        ...appointmentData,
+        patientId: user.id,
+        patientName: `${user.firstName} ${user.lastName}`,
+        patientEmail: user.email
+      };
+      
+      await appointmentApi.createAppointment(appointmentWithUser);
+      await loadAppointments(); // Reload appointments
+    } catch (error) {
+      console.error('Error creating appointment:', error);
+      throw error;
+    }
+  };
+
+  const handleUpdateAppointment = async (appointmentData) => {
+    if (!selectedAppointment?._id) return;
+    
+    try {
+      await appointmentApi.updateAppointment(selectedAppointment._id, appointmentData);
+      await loadAppointments(); // Reload appointments
+    } catch (error) {
+      console.error('Error updating appointment:', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteAppointment = async (appointmentId) => {
+    if (!confirm('Are you sure you want to cancel this appointment?')) return;
+    
+    try {
+      await appointmentApi.deleteAppointment(appointmentId);
+      await loadAppointments(); // Reload appointments
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
+    }
+  };
+
+  const openAppointmentModal = (appointment = null) => {
+    setSelectedAppointment(appointment);
+    setIsModalOpen(true);
+  };
+
   const handleSettingToggle = (setting) => {
     setSettings(prev => ({ ...prev, [setting]: !prev[setting] }));
   };
@@ -82,7 +163,7 @@ const HealthcareDashboard = () => {
     setFeedbackForm({ subject: 'General Inquiry', message: '' });
   };
 
-  const appointments = [
+  const mockAppointments = [
     { date: 'Jul 15', doctor: 'Dr. Johnson - Cardiology', time: '10:30 AM', type: 'Regular Checkup' },
     { date: 'Jul 22', doctor: 'Dr. Smith - General Medicine', time: '2:00 PM', type: 'Follow-up' }
   ];
@@ -187,23 +268,76 @@ const HealthcareDashboard = () => {
   const renderAppointments = () => (
     <div className="space-y-6">
       <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
-        <h3 className="text-2xl font-bold mb-6">Upcoming Appointments</h3>
-        <div className="space-y-4">
-          {appointments.map((apt, index) => (
-            <div key={index} className="flex items-center bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-all duration-300">
-              <div className="bg-gradient-to-r from-blue-400 to-blue-600 text-white px-4 py-2 rounded-lg font-semibold mr-4 min-w-[70px] text-center">
-                {apt.date}
-              </div>
-              <div className="flex-1">
-                <h4 className="font-semibold text-white">{apt.doctor}</h4>
-                <p className="text-sm text-gray-400">{apt.time} • {apt.type}</p>
-              </div>
-            </div>
-          ))}
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-bold">Appointments</h3>
+          <button 
+            onClick={() => openAppointmentModal()}
+            className="flex items-center bg-gradient-to-r from-blue-400 to-blue-600 text-white px-4 py-2 rounded-lg hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Schedule New
+          </button>
         </div>
-        <button className="w-full mt-4 bg-gradient-to-r from-blue-400 to-blue-600 text-white py-3 rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300">
-          Schedule New Appointment
-        </button>
+        
+        {isLoadingAppointments ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            <span className="ml-3 text-white">Loading appointments...</span>
+          </div>
+        ) : appointments.length === 0 ? (
+          <div className="text-center py-8">
+            <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-400">No appointments scheduled</p>
+            <button 
+              onClick={() => openAppointmentModal()}
+              className="mt-4 text-blue-400 hover:text-blue-300"
+            >
+              Schedule your first appointment
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {appointments.map((apt) => (
+              <div key={apt._id} className="bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="bg-gradient-to-r from-blue-400 to-blue-600 text-white px-3 py-1 rounded-lg font-semibold text-sm">
+                      {new Date(apt.appointmentDate).toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric' 
+                      })}
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">{apt.doctorName || 'Dr. Smith'}</h4>
+                      <p className="text-sm text-gray-400">
+                        {apt.reason} • {apt.appointmentTime} • {apt.mode === 'video' ? 'Video Call' : 'In-Person'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {apt.mode === 'video' ? (
+                      <Video className="w-4 h-4 text-purple-400" />
+                    ) : (
+                      <Stethoscope className="w-4 h-4 text-green-400" />
+                    )}
+                    <button 
+                      onClick={() => openAppointmentModal(apt)}
+                      className="p-2 bg-blue-500/20 rounded-lg hover:bg-blue-500/30 transition-colors"
+                    >
+                      <Calendar className="w-4 h-4 text-blue-400" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteAppointment(apt._id)}
+                      className="p-2 bg-red-500/20 rounded-lg hover:bg-red-500/30 transition-colors"
+                    >
+                      <X className="w-4 h-4 text-red-400" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -496,6 +630,23 @@ const HealthcareDashboard = () => {
           </div>
         </div>
       </div>
+      
+      {/* Appointment Modal */}
+      <AppointmentModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedAppointment(null);
+        }}
+        onSubmit={selectedAppointment ? handleUpdateAppointment : handleCreateAppointment}
+        appointment={selectedAppointment}
+        userType="patient"
+        doctors={[
+          { id: 1, name: 'Dr. Johnson', specialty: 'Cardiology' },
+          { id: 2, name: 'Dr. Smith', specialty: 'General Medicine' },
+          { id: 3, name: 'Dr. Davis', specialty: 'Dermatology' }
+        ]}
+      />
     </div>
   );
 };

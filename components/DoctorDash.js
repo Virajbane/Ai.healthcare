@@ -6,8 +6,10 @@ import {
   Brain, Clock, TrendingUp, AlertCircle, CheckCircle, Phone, Video,
   Filter, Download, Plus, Edit, Eye
 } from 'lucide-react';
+import { appointmentApi } from '@/lib/appointmentApi';
+import AppointmentModal from './AppointmentModal';
 
-const DoctorDashboard = () => {
+const DoctorDashboard = ({ user }) => {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
@@ -20,6 +22,13 @@ const DoctorDashboard = () => {
     pendingReports: 0,
     criticalAlerts: 0
   });
+
+  // Appointment states
+  const [appointments, setAppointments] = useState([]);
+  const [upcomingAppointments, setUpcomingAppointments] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
 
   const navigationItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -72,7 +81,7 @@ const DoctorDashboard = () => {
     }
   ];
 
-  const appointments = [
+  const mockAppointments = [
     {
       id: 1,
       patientName: 'Sarah Johnson',
@@ -148,6 +157,77 @@ const DoctorDashboard = () => {
       }, 50);
     });
   }, []);
+
+  // Load appointments when appointments section is active
+  useEffect(() => {
+    if (activeSection === 'appointments' && user?.id) {
+      loadAppointments();
+    }
+  }, [activeSection, user?.id]);
+
+  const loadAppointments = async () => {
+    if (!user?.id) return;
+    
+    setIsLoadingAppointments(true);
+    try {
+      const response = await appointmentApi.getAppointments(user.id, 'doctor');
+      setAppointments(response.appointments || []);
+      
+      const upcomingResponse = await appointmentApi.getUpcomingAppointments(user.id, 'doctor', 5);
+      setUpcomingAppointments(upcomingResponse.appointments || []);
+    } catch (error) {
+      console.error('Error loading appointments:', error);
+    } finally {
+      setIsLoadingAppointments(false);
+    }
+  };
+
+  const handleCreateAppointment = async (appointmentData) => {
+    if (!user?.id) return;
+    
+    try {
+      const appointmentWithUser = {
+        ...appointmentData,
+        doctorId: user.id,
+        doctorName: `Dr. ${user.firstName} ${user.lastName}`,
+        doctorEmail: user.email
+      };
+      
+      await appointmentApi.createAppointment(appointmentWithUser);
+      await loadAppointments(); // Reload appointments
+    } catch (error) {
+      console.error('Error creating appointment:', error);
+      throw error;
+    }
+  };
+
+  const handleUpdateAppointment = async (appointmentData) => {
+    if (!selectedAppointment?._id) return;
+    
+    try {
+      await appointmentApi.updateAppointment(selectedAppointment._id, appointmentData);
+      await loadAppointments(); // Reload appointments
+    } catch (error) {
+      console.error('Error updating appointment:', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteAppointment = async (appointmentId) => {
+    if (!confirm('Are you sure you want to cancel this appointment?')) return;
+    
+    try {
+      await appointmentApi.deleteAppointment(appointmentId);
+      await loadAppointments(); // Reload appointments
+    } catch (error) {
+      console.error('Error deleting appointment:', error);
+    }
+  };
+
+  const openAppointmentModal = (appointment = null) => {
+    setSelectedAppointment(appointment);
+    setIsModalOpen(true);
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -226,24 +306,31 @@ const DoctorDashboard = () => {
             </button>
           </div>
           <div className="space-y-4">
-            {appointments.slice(0, 3).map((apt) => (
-              <div key={apt.id} className="flex items-center bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-all duration-300">
-                <div className="bg-gradient-to-r from-blue-400 to-blue-600 text-white px-3 py-1 rounded-lg font-semibold mr-4 text-sm">
-                  {apt.time}
+            {upcomingAppointments.length > 0 ? (
+              upcomingAppointments.slice(0, 3).map((apt) => (
+                <div key={apt._id || apt.id} className="flex items-center bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-all duration-300">
+                  <div className="bg-gradient-to-r from-blue-400 to-blue-600 text-white px-3 py-1 rounded-lg font-semibold mr-4 text-sm">
+                    {apt.appointmentTime}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-white">{apt.patientName}</h4>
+                    <p className="text-sm text-gray-400">{apt.appointmentType} • {apt.reason}</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {apt.mode === 'video' ? 
+                      <Video className="w-4 h-4 text-purple-400" /> : 
+                      <Stethoscope className="w-4 h-4 text-green-400" />
+                    }
+                    <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${getStatusColor(apt.status)}`}></div>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-white">{apt.patientName}</h4>
-                  <p className="text-sm text-gray-400">{apt.type} • {apt.condition}</p>
-                </div>
-                <div className="flex items-center space-x-2">
-                  {apt.mode === 'video' ? 
-                    <Video className="w-4 h-4 text-purple-400" /> : 
-                    <Stethoscope className="w-4 h-4 text-green-400" />
-                  }
-                  <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${getStatusColor(apt.status)}`}></div>
-                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-400">No upcoming appointments</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -323,7 +410,10 @@ const DoctorDashboard = () => {
               <option value="month">This Month</option>
               <option value="all">All Appointments</option>
             </select>
-            <button className="flex items-center bg-gradient-to-r from-blue-400 to-blue-600 text-white px-4 py-2 rounded-lg hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300">
+            <button 
+              onClick={() => openAppointmentModal()}
+              className="flex items-center bg-gradient-to-r from-blue-400 to-blue-600 text-white px-4 py-2 rounded-lg hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300"
+            >
               <Plus className="w-4 h-4 mr-2" />
               New Appointment
             </button>
@@ -344,42 +434,72 @@ const DoctorDashboard = () => {
       {/* Appointments List */}
       <div className="bg-white/5 backdrop-blur-lg rounded-2xl p-6 border border-white/10">
         <h3 className="text-2xl font-bold mb-6">Appointments</h3>
-        <div className="space-y-4">
-          {appointments.map((apt) => (
-            <div key={apt.id} className="bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-all duration-300">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="bg-gradient-to-r from-blue-400 to-blue-600 text-white px-4 py-2 rounded-lg font-semibold">
-                    {apt.time}
+        
+        {isLoadingAppointments ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            <span className="ml-3 text-white">Loading appointments...</span>
+          </div>
+        ) : appointments.length === 0 ? (
+          <div className="text-center py-8">
+            <Calendar className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-400">No appointments scheduled</p>
+            <button 
+              onClick={() => openAppointmentModal()}
+              className="mt-4 text-blue-400 hover:text-blue-300"
+            >
+              Schedule your first appointment
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {appointments.map((apt) => (
+              <div key={apt._id} className="bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="bg-gradient-to-r from-blue-400 to-blue-600 text-white px-4 py-2 rounded-lg font-semibold">
+                      {apt.appointmentTime}
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">{apt.patientName || 'Patient'}</h4>
+                      <p className="text-sm text-gray-400">
+                        {apt.reason} • {apt.mode === 'video' ? 'Video Call' : 'In-Person'}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-semibold text-white">{apt.patientName}</h4>
-                    <p className="text-sm text-gray-400">{apt.type} • {apt.condition} • {apt.duration}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <div className={`px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r ${getStatusColor(apt.status)} text-white`}>
-                    {apt.status}
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {apt.mode === 'video' ? (
-                      <button className="p-2 bg-purple-500/20 rounded-lg hover:bg-purple-500/30 transition-colors">
-                        <Video className="w-4 h-4 text-purple-400" />
+                  <div className="flex items-center space-x-4">
+                    <div className={`px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r ${getStatusColor(apt.status || 'scheduled')} text-white`}>
+                      {apt.status || 'scheduled'}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {apt.mode === 'video' ? (
+                        <button className="p-2 bg-purple-500/20 rounded-lg hover:bg-purple-500/30 transition-colors">
+                          <Video className="w-4 h-4 text-purple-400" />
+                        </button>
+                      ) : (
+                        <button className="p-2 bg-green-500/20 rounded-lg hover:bg-green-500/30 transition-colors">
+                          <Stethoscope className="w-4 h-4 text-green-400" />
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => openAppointmentModal(apt)}
+                        className="p-2 bg-blue-500/20 rounded-lg hover:bg-blue-500/30 transition-colors"
+                      >
+                        <Edit className="w-4 h-4 text-blue-400" />
                       </button>
-                    ) : (
-                      <button className="p-2 bg-green-500/20 rounded-lg hover:bg-green-500/30 transition-colors">
-                        <Stethoscope className="w-4 h-4 text-green-400" />
+                      <button 
+                        onClick={() => handleDeleteAppointment(apt._id)}
+                        className="p-2 bg-red-500/20 rounded-lg hover:bg-red-500/30 transition-colors"
+                      >
+                        <X className="w-4 h-4 text-red-400" />
                       </button>
-                    )}
-                    <button className="p-2 bg-blue-500/20 rounded-lg hover:bg-blue-500/30 transition-colors">
-                      <Edit className="w-4 h-4 text-blue-400" />
-                    </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -749,6 +869,19 @@ const DoctorDashboard = () => {
           </div>
         </div>
       </div>
+      
+      {/* Appointment Modal */}
+      <AppointmentModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedAppointment(null);
+        }}
+        onSubmit={selectedAppointment ? handleUpdateAppointment : handleCreateAppointment}
+        appointment={selectedAppointment}
+        userType="doctor"
+        patients={patients}
+      />
     </div>
   );
 };
