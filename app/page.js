@@ -1,10 +1,10 @@
-"use client"
+"use client";
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import HomePage from '@/components/Home';
 
-export default function RootPage() {
+export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
@@ -13,39 +13,35 @@ export default function RootPage() {
   useEffect(() => {
     const checkAuthAndRedirect = async () => {
       console.log("Checking authentication on root page...");
-      
+
       try {
-        // Check for session token
-        const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('sessionToken') : null;
-        
+        const sessionToken =
+          typeof window !== 'undefined'
+            ? localStorage.getItem('sessionToken')
+            : null;
+
         if (sessionToken) {
           console.log("Session token found, validating with database...");
-          
-          // Validate session with database
+
           const response = await fetch('/api/auth/validate-session', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ sessionToken })
+            body: JSON.stringify({ sessionToken }),
           });
 
           if (response.ok) {
             const sessionData = await response.json();
-            console.log("Session validated, user role:", sessionData.user.role);
-            
+            console.log("Session validated, user:", sessionData.user);
+
             setIsAuthenticated(true);
             setUser(sessionData.user);
-            
-            // Redirect based on user role
-            if (sessionData.user.role === 'doctor') {
-              router.push('/DoctorDashboard');
-            } else {
-              router.push('/UserDashboard');
-            }
+
+            // Redirect to unified dashboard
+            router.push('/dashboard');
           } else {
             console.log("Session validation failed, clearing local data");
-            // Clear invalid session data
             localStorage.removeItem('sessionToken');
             localStorage.removeItem('user');
             setIsAuthenticated(false);
@@ -61,13 +57,11 @@ export default function RootPage() {
         setIsAuthenticated(false);
         setUser(null);
       }
-      
+
       setIsLoading(false);
     };
 
-    // Ensure we're on the client side
     if (typeof window !== 'undefined') {
-      // Small delay to ensure localStorage is available
       setTimeout(checkAuthAndRedirect, 100);
     } else {
       setIsLoading(false);
@@ -82,7 +76,6 @@ export default function RootPage() {
     );
   }
 
-  // If authenticated, show loading while redirecting
   if (isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 flex items-center justify-center">
@@ -91,7 +84,6 @@ export default function RootPage() {
     );
   }
 
-  // If not authenticated, show home page
   return (
     <>
       <Header isAuthenticated={isAuthenticated} user={user} />

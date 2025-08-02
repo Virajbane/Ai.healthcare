@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from 'framer-motion';
+import { motion } from "framer-motion";
 import { Eye, EyeOff, Mail, Lock, ArrowRight, Brain } from "lucide-react";
 
 export default function LoginPage() {
@@ -19,7 +19,7 @@ export default function LoginPage() {
 
     try {
       console.log("Attempting login with:", { email: form.email });
-      
+
       const res = await fetch("/api/auth/sign-in", {
         method: "POST",
         headers: {
@@ -29,43 +29,33 @@ export default function LoginPage() {
       });
 
       console.log("Response status:", res.status);
-      
+
       const data = await res.json();
       console.log("Response data:", data);
-      
+
       if (res.ok) {
         console.log("Login successful, session created in database");
-        
+
         // Store minimal user data in localStorage (optional)
         if (data.user) {
-          localStorage.setItem("user", JSON.stringify({
-            id: data.user.id,
-            firstName: data.user.firstName,
-            lastName: data.user.lastName,
-            email: data.user.email,
-            role: data.user.role
-          }));
-          
-          // Store session token for client-side API calls
+          localStorage.setItem(
+            "user",
+            JSON.stringify({
+              id: data.user.id,
+              firstName: data.user.firstName,
+              lastName: data.user.lastName,
+              email: data.user.email,
+              role: data.user.role,
+            })
+          );
+
           localStorage.setItem("sessionToken", data.sessionToken);
-          
-          console.log("User data stored locally, redirecting based on role...");
-        
-          // Redirect based on role with a small delay to ensure cookie is set
+
+          // ✅ Redirect all users to /Dashboard
           setTimeout(() => {
-            if (data.user.role === "doctor") {
-              console.log("Redirecting doctor to DoctorDashboard");
-              router.push("/DoctorDashboard");
-            } else if (data.user.role === "patient") {
-              console.log("Redirecting patient to UserDashboard");
-              router.push("/UserDashboard");
-            } else {
-              console.log("Unknown role, redirecting to UserDashboard");
-              router.push("/UserDashboard");
-            }
+            router.push("/dashboard");
           }, 200);
         }
-        
       } else {
         console.log("Login failed:", data.message);
         setError(data.message || "Login failed");
@@ -79,23 +69,23 @@ export default function LoginPage() {
   };
 
   return (
-    <motion.div 
+    <motion.div
       className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 flex items-center justify-center p-4"
-      initial={{ 
+      initial={{
         opacity: 0,
-        y: 20
+        y: 20,
       }}
-      animate={{ 
+      animate={{
         opacity: 1,
-        y: 0
+        y: 0,
       }}
-      exit={{ 
+      exit={{
         opacity: 0,
-        y: -20
+        y: -20,
       }}
-      transition={{ 
+      transition={{
         duration: 1.2,
-        ease: "easeInOut"
+        ease: "easeInOut",
       }}
     >
       {/* Animated background elements */}
@@ -140,14 +130,16 @@ export default function LoginPage() {
                   required
                   className="w-full pl-10 pr-4 py-3 bg-gray-700/50 border border-gray-600/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
                   value={form.email}
-                  onChange={(e) => setForm({...form, email: e.target.value})}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
               </div>
             </div>
 
             {/* Password Field */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300">Password</label>
+              <label className="text-sm font-medium text-gray-300">
+                Password
+              </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
                 <input
@@ -156,14 +148,20 @@ export default function LoginPage() {
                   required
                   className="w-full pl-10 pr-12 py-3 bg-gray-700/50 border border-gray-600/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
                   value={form.password}
-                  onChange={(e) => setForm({...form, password: e.target.value})}
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
                 />
                 <button
                   type="button"
                   className="absolute right-3 top-3 text-gray-400 hover:text-gray-300 transition-colors"
                   onClick={() => setShowPassword(!showPassword)}
                 >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
                 </button>
               </div>
             </div>
@@ -189,8 +187,8 @@ export default function LoginPage() {
           <div className="mt-8 text-center">
             <p className="text-gray-400">
               Don't have an account?{" "}
-              <Link 
-                href="/signup" 
+              <Link
+                href="/signup"
                 className="text-teal-400 hover:text-teal-300 font-medium transition-colors"
               >
                 Sign up here

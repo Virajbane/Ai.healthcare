@@ -1,6 +1,7 @@
-// /api/appointments/[id]/route.js - Update and delete specific appointments
+// /api/appointments/[id]/route.js
+
 import { NextRequest, NextResponse } from 'next/server';
-import { MongoClient, ObjectId } from 'mongodb';
+import { ObjectId, MongoClient } from 'mongodb';
 
 const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri);
@@ -12,90 +13,34 @@ async function connectToDatabase() {
   return client.db('healthcare');
 }
 
+// PUT /api/appointments/[id] - Update an appointment
 export async function PUT(request, { params }) {
   try {
-    const { id } = params;
-    const body = await request.json();
-    
-    if (!ObjectId.isValid(id)) {
-      return NextResponse.json(
-        { error: 'Invalid appointment ID' },
-        { status: 400 }
-      );
-    }
-
     const db = await connectToDatabase();
-    const collection = db.collection('appointments');
-    
-    const updateData = {
-      ...body,
-      updatedAt: new Date()
-    };
+    const body = await request.json();
+    const { id } = params;
 
-    if (body.appointmentDate) {
-      updateData.appointmentDate = new Date(body.appointmentDate);
-    }
-
-    // Generate meeting link for video appointments if not provided
-    if (body.mode === 'video' && !body.meetingLink) {
-      updateData.meetingLink = `https://meet.healthcare.com/room/${id}`;
-    }
-
-    const result = await collection.findOneAndUpdate(
+    const result = await db.collection('appointments').updateOne(
       { _id: new ObjectId(id) },
-      { $set: updateData },
-      { returnDocument: 'after' }
+      { $set: body }
     );
 
-    if (!result.value) {
-      return NextResponse.json(
-        { error: 'Appointment not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ appointment: result.value }, { status: 200 });
+    return NextResponse.json({ success: result.modifiedCount > 0 });
   } catch (error) {
-    console.error('Error updating appointment:', error);
-    return NextResponse.json(
-      { error: 'Failed to update appointment' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to update appointment' }, { status: 500 });
   }
 }
 
+// DELETE /api/appointments/[id] - Delete an appointment
 export async function DELETE(request, { params }) {
   try {
-    const { id } = params;
-    
-    if (!ObjectId.isValid(id)) {
-      return NextResponse.json(
-        { error: 'Invalid appointment ID' },
-        { status: 400 }
-      );
-    }
-
     const db = await connectToDatabase();
-    const collection = db.collection('appointments');
-    
-    const result = await collection.deleteOne({ _id: new ObjectId(id) });
-    
-    if (result.deletedCount === 0) {
-      return NextResponse.json(
-        { error: 'Appointment not found' },
-        { status: 404 }
-      );
-    }
+    const { id } = params;
 
-    return NextResponse.json(
-      { message: 'Appointment cancelled successfully' },
-      { status: 200 }
-    );
+    const result = await db.collection('appointments').deleteOne({ _id: new ObjectId(id) });
+
+    return NextResponse.json({ success: result.deletedCount > 0 });
   } catch (error) {
-    console.error('Error deleting appointment:', error);
-    return NextResponse.json(
-      { error: 'Failed to cancel appointment' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to delete appointment' }, { status: 500 });
   }
-} 
+}

@@ -1,7 +1,7 @@
-// app/api/auth/validate-session/route.js
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import Session from "@/models/session";
+import "@/models/user"; // ✅ Register the User model here
 
 export async function POST(req) {
   try {
@@ -18,7 +18,7 @@ export async function POST(req) {
       sessionToken: sessionToken,
       isActive: true,
       expiresAt: { $gt: new Date() }
-    }).populate('userId', 'firstName lastName email role');
+    }).populate('userId', 'firstName lastName email role'); // needs User model to be registered
 
     if (!session) {
       return NextResponse.json({ message: "Invalid or expired session" }, { status: 401 });
