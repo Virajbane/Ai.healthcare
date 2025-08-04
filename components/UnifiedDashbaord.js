@@ -16,7 +16,7 @@ import LoadingSpinner from './shared/LoadingSpinner';
 import ErrorDisplay from './shared/ErrorDisplay';
 import AppointmentModal from './shared/AppointmentModal';
 
-// Import API utilities
+// Import API utilities (updated imports)
 import { 
   authApi, 
   appointmentApi, 
@@ -25,12 +25,22 @@ import {
   labReportApi, 
   patientApi,
   notificationApi,
-  subscribeToUpdates,
   formatDate,
   formatTime,
   getTimeAgo,
   getStatusColor 
 } from '../utils/api';
+
+// Import socket utilities for real-time updates
+import { 
+  initializeSocket,
+  getSocket,
+  subscribeToNotifications,
+  subscribeToHealthMetrics,
+  subscribeToMedications,
+  subscribeToAppointments,
+  disconnectSocket
+} from '@/lib/socket';
 
 // Import section components
 import PatientDashboard from '@/components/patient/PatientDashboard';
@@ -57,6 +67,7 @@ const UnifiedDashboard = ({ initialUser = null, userType = null }) => {
   // Real-time updates
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [socketConnected, setSocketConnected] = useState(false);
 
   // Navigation items for different user types
   const getNavigationItems = () => {
@@ -101,12 +112,6 @@ const UnifiedDashboard = ({ initialUser = null, userType = null }) => {
           setUser(userData);
           const type = userType || determineUserType(userData);
           setDetectedUserType(type);
-          
-          // Start real-time updates
-          const unsubscribe = subscribeToUpdates(userData.id, type, handleNotificationUpdate);
-          
-          // Cleanup function
-          return () => unsubscribe();
         } else {
           setUserError('Failed to load user data');
         }
@@ -120,6 +125,81 @@ const UnifiedDashboard = ({ initialUser = null, userType = null }) => {
 
     loadUserData();
   }, [initialUser, userType]);
+
+  // Initialize socket connection when user is loaded
+  useEffect(() => {
+    if (user?.id) {
+      console.log('Initializing socket for user:', user.id);
+      const socket = initializeSocket(user.id);
+      
+      if (socket) {
+        // Monitor connection status
+        setSocketConnected(socket.connected);
+        
+        socket.on('connect', () => {
+          console.log('Socket connected in dashboard');
+          setSocketConnected(true);
+        });
+        
+        socket.on('disconnect', () => {
+          console.log('Socket disconnected in dashboard');
+          setSocketConnected(false);
+        });
+      }
+    }
+
+    // Cleanup on unmount
+    return () => {
+      const socket = getSocket();
+      if (socket) {
+        socket.off('connect');
+        socket.off('disconnect');
+      }
+    };
+  }, [user?.id]);
+
+  // Set up real-time subscriptions
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('Setting up real-time subscriptions for user:', user.id);
+
+    // Subscribe to notifications
+    const unsubscribeNotifications = subscribeToNotifications(user.id, (notification) => {
+      console.log('New notification received:', notification);
+      setNotifications(prev => [notification, ...prev]);
+      setUnreadCount(prev => prev + 1);
+    });
+
+    // Subscribe to health metrics updates (for patients)
+    const unsubscribeHealthMetrics = subscribeToHealthMetrics(user.id, (metrics) => {
+      console.log('Health metrics updated:', metrics);
+      // Trigger refresh in child components
+      window.dispatchEvent(new CustomEvent('healthMetricsUpdated', { detail: metrics }));
+    });
+
+    // Subscribe to medication updates
+    const unsubscribeMedications = subscribeToMedications(user.id, (medicationUpdate) => {
+      console.log('Medication update received:', medicationUpdate);
+      // Trigger refresh in child components
+      window.dispatchEvent(new CustomEvent('medicationUpdated', { detail: medicationUpdate }));
+    });
+
+    // Subscribe to appointment updates
+    const unsubscribeAppointments = subscribeToAppointments(user.id, (appointmentUpdate) => {
+      console.log('Appointment update received:', appointmentUpdate);
+      // Trigger refresh in child components
+      window.dispatchEvent(new CustomEvent('appointmentUpdated', { detail: appointmentUpdate }));
+    });
+
+    // Cleanup function
+    return () => {
+      if (unsubscribeNotifications) unsubscribeNotifications();
+      if (unsubscribeHealthMetrics) unsubscribeHealthMetrics();
+      if (unsubscribeMedications) unsubscribeMedications();
+      if (unsubscribeAppointments) unsubscribeAppointments();
+    };
+  }, [user?.id]);
 
   // Load initial notifications
   useEffect(() => {
@@ -147,16 +227,12 @@ const UnifiedDashboard = ({ initialUser = null, userType = null }) => {
     
     try {
       const response = await notificationApi.getNotifications(user.id);
-      setNotifications(response.notifications || []);
-      setUnreadCount(response.notifications?.filter(n => !n.read).length || 0);
+      const notificationList = Array.isArray(response) ? response : (response.notifications || []);
+      setNotifications(notificationList);
+      setUnreadCount(notificationList.filter(n => !n.read).length);
     } catch (error) {
       console.error('Error loading notifications:', error);
     }
-  };
-
-  const handleNotificationUpdate = (newNotifications) => {
-    setNotifications(newNotifications.notifications || []);
-    setUnreadCount(newNotifications.notifications?.filter(n => !n.read).length || 0);
   };
 
   const handleNavigationChange = (sectionId) => {
@@ -176,7 +252,7 @@ const UnifiedDashboard = ({ initialUser = null, userType = null }) => {
           const appointmentWithUser = {
             ...appointmentData,
             patientId: user.id,
-            patientName: `${user.firstName} ${user.lastName}`,
+            patientName: `${user.firstName || user.name} ${user.lastName || ''}`.trim(),
             patientEmail: user.email
           };
           await appointmentApi.createAppointment(appointmentWithUser);
@@ -185,7 +261,7 @@ const UnifiedDashboard = ({ initialUser = null, userType = null }) => {
           await appointmentApi.createAppointment(appointmentData);
         }
       } else if (action === 'update') {
-        await appointmentApi.updateAppointment(selectedAppointment._id, appointmentData);
+        await appointmentApi.updateAppointment(selectedAppointment._id || selectedAppointment.id, appointmentData);
       } else if (action === 'approve') {
         await appointmentApi.approveAppointment(appointmentData, user.id);
       } else if (action === 'reject') {
@@ -211,9 +287,24 @@ const UnifiedDashboard = ({ initialUser = null, userType = null }) => {
     setIsAppointmentModalOpen(true);
   };
 
-  const handleNotificationClick = () => {
-    // Handle notification click - could open notification panel
-    console.log('Notifications clicked');
+  const handleNotificationClick = async () => {
+    // Handle notification click - mark notifications as read
+    try {
+      // Mark all notifications as read
+      await Promise.all(
+        notifications
+          .filter(n => !n.read)
+          .map(n => notificationApi.markAsRead(n.id))
+      );
+      
+      // Update local state
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
+      
+      console.log('All notifications marked as read');
+    } catch (error) {
+      console.error('Error marking notifications as read:', error);
+    }
   };
 
   const handleMessageClick = () => {
@@ -275,6 +366,8 @@ const UnifiedDashboard = ({ initialUser = null, userType = null }) => {
           onMenuClick={() => setSidebarOpen(true)}
           onNotificationClick={handleNotificationClick}
           onMessageClick={handleMessageClick}
+          socketConnected={socketConnected}
+          unreadCount={unreadCount}
         />
 
         {/* Page Content */}
@@ -316,13 +409,26 @@ const UnifiedDashboard = ({ initialUser = null, userType = null }) => {
         <div className="fixed bottom-4 right-4 z-50">
           <button
             onClick={handleNotificationClick}
-            className="bg-gradient-to-r from-red-400 to-red-600 text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
+            className="bg-gradient-to-r from-red-400 to-red-600 text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
           >
             <Bell className="w-6 h-6" />
             <span className="absolute -top-2 -right-2 bg-white text-red-600 text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
               {unreadCount}
             </span>
           </button>
+        </div>
+      )}
+
+      {/* Socket Connection Status (development only) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-4 left-4 z-50">
+          <div className={`px-3 py-2 rounded-full text-xs font-medium ${
+            socketConnected 
+              ? 'bg-green-500 text-white' 
+              : 'bg-red-500 text-white'
+          }`}>
+            {socketConnected ? '🟢 Connected' : '🔴 Disconnected'}
+          </div>
         </div>
       )}
     </div>
