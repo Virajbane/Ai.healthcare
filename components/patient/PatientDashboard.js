@@ -3,7 +3,7 @@ import PatientOverview from './PatientOverview';
 import PatientAppointments from './PatientAppointments';
 import PatientMedications from './PatientMedications';
 import PatientLabReports from './PatientLabReports';
-import PatientPersonalInfo from './PatientPersonalInfo';
+import PatientPersonalInfo from './PatientPersonalinfo';
 import PatientSettings from './PatientSettings';
 
 const PatientDashboard = ({ 
