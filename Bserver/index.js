@@ -8,6 +8,7 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
+
 // CORS configuration
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
@@ -37,7 +38,7 @@ const mockUsers = {
     id: '1', 
     name: 'John Doe', 
     email: 'john@example.com', 
-    role: 'patient',
+    role: 'doctor',
     phone: '+1234567890',
     address: '123 Main St'
   },

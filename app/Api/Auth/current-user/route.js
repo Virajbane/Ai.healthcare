@@ -1,3 +1,4 @@
+// current-user route.js
 import { NextResponse } from 'next/server';
 import { validateSession } from '@/lib/auth';
 

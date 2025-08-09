@@ -209,6 +209,7 @@ const UnifiedDashboard = ({ initialUser = null, userType = null }) => {
   }, [user?.id]);
 
   const determineUserType = (userData) => {
+    console.log('Determining user type for:', userData);
     // Logic to determine if user is a patient or doctor
     // This could be based on role field, email domain, or other criteria
     if (userData.role === 'doctor' || userData.userType === 'doctor') {

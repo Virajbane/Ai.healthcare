@@ -14,6 +14,7 @@
     "@clerk/themes": "^2.2.19",
     "@google/generative-ai": "^0.24.0",
     "bcryptjs": "^3.0.2",
+    "concurrently": "^8.2.0",
     "cors": "^2.8.5",
     "dotenv": "^17.0.0",
     "express": "^4.18.2",
@@ -24,11 +25,12 @@
     "next": "^15.1.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-is": "^19.1.1",
     "react-markdown": "^10.1.0",
+    "recharts": "^3.1.2",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
-    "uuid": "^11.1.0",
-    "concurrently": "^8.2.0"
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "postcss": "^8",
