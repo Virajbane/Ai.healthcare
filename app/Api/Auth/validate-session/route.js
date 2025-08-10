@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
-import Session from "@/models/session";
-import "@/models/user"; // ✅ Register the User model here
+import Session from "@/Bserver/models/session";
+import "@/Bserver/models/user"; // ✅ Register the User model here
 
 export async function POST(req) {
   try {

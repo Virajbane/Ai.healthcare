@@ -1,8 +1,8 @@
 // app/api/auth/sign-in/route.js
 import { NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
-import User from "@/models/user";
-import Session from "@/models/session";
+import Session from "@/Bserver/models/session";
+import User from "@/Bserver/models/user";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from 'uuid';

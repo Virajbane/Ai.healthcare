@@ -1,13 +1,42 @@
+
+
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
-require('dotenv').config();
+const mongoose = require('mongoose');
+const jwt = require('jsonwebtoken');
+require('dotenv').config({ path: ['.env', '.env.local'] });
+
+// Import models
+const User = require('./models/user');
+const Appointment = require('./models/Appointment'); // You'll need to create this
+const HealthMetrics = require('./models/HealthMetrics'); // You'll need to create this
+const Medication = require('./models/Medication'); // You'll need to create this
+const LabReport = require('./models/LabReport'); // You'll need to create this
+const Notification = require('./models/Notification'); // You'll need to create this
 
 const app = express();
 const server = http.createServer(app);
 
+// MongoDB Connection
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log('🍃 MongoDB connected successfully');
+  } catch (error) {
+    console.error('❌ MongoDB connection error:', error);
+    process.exit(1);
+  }
+};
+
+// Connect to MongoDB
+connectDB();
 
 // CORS configuration
 app.use(cors({
@@ -32,31 +61,30 @@ const io = new Server(server, {
   }
 });
 
-// Mock Database (Replace with MongoDB later)
-const mockUsers = {
-  '1': { 
-    id: '1', 
-    name: 'John Doe', 
-    email: 'john@example.com', 
-    role: 'doctor',
-    phone: '+1234567890',
-    address: '123 Main St'
-  },
-  '2': { 
-    id: '2', 
-    name: 'Dr. Smith', 
-    email: 'dr.smith@example.com', 
-    role: 'doctor',
-    specialty: 'Cardiology',
-    phone: '+1987654321'
+// JWT Middleware for protected routes
+const authenticateToken = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ error: 'Access token required' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const user = await User.findById(decoded.userId).select('-password');
+    
+    if (!user) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error('Auth middleware error:', error);
+    return res.status(403).json({ error: 'Invalid or expired token' });
   }
 };
-
-const mockHealthMetrics = {};
-const mockMedications = {};
-const mockAppointments = [];
-const mockLabReports = [];
-const mockNotifications = {};
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
@@ -73,424 +101,335 @@ io.on('connection', (socket) => {
 });
 
 // Authentication Routes
-app.get('/api/auth/current-user', (req, res) => {
+app.get('/api/auth/current-user', authenticateToken, async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    let userId = '1'; // Default user for testing
+    // User is already attached by authenticateToken middleware
+    const user = req.user;
     
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7);
-      // Extract user ID from mock token
-      userId = token.replace('mock-token-', '') || '1';
-    }
+    console.log(`Current user requested: ${user.fullName} (${user.role})`);
     
-    const user = mockUsers[userId];
+    // Return user without sensitive information
+    const userResponse = {
+      id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      dateOfBirth: user.dateOfBirth,
+      gender: user.gender,
+      address: user.address,
+      profilePicture: user.profilePicture,
+      isVerified: user.isVerified,
+      ...(user.role === 'doctor' && user.doctorInfo && { doctorInfo: user.doctorInfo }),
+      ...(user.role === 'patient' && user.patientInfo && { patientInfo: user.patientInfo }),
+      preferences: user.preferences,
+      lastLogin: user.lastLogin
+    };
     
-    if (!user) {
-      return res.status(401).json({ error: 'User not found' });
-    }
-    
-    console.log(`Current user requested: ${user.name}`);
-    res.json(user);
+    res.json(userResponse);
   } catch (error) {
     console.error('getCurrentUser error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
     console.log(`Login attempt for: ${email}`);
     
-    const user = Object.values(mockUsers).find(u => u.email === email);
+    // Find user by email
+    const user = await User.findOne({ email: email.toLowerCase() });
     
-    if (user && password === 'password') { // Mock password
-      const token = `mock-token-${user.id}`;
-      
-      res.json({ 
-        success: true,
-        user, 
-        token,
-        message: 'Login successful'
-      });
-      
-      console.log(`Login successful for: ${user.name}`);
-    } else {
-      res.status(401).json({ 
+    if (!user) {
+      return res.status(401).json({ 
         error: 'Invalid credentials',
         message: 'Please check your email and password'
       });
     }
+    
+    // Check if account is locked
+    if (user.isLocked) {
+      return res.status(423).json({ 
+        error: 'Account locked',
+        message: 'Account is temporarily locked due to too many failed login attempts'
+      });
+    }
+    
+    // Check if account is active
+    if (!user.isActive) {
+      return res.status(401).json({ 
+        error: 'Account inactive',
+        message: 'Your account has been deactivated. Please contact support.'
+      });
+    }
+    
+    // Verify password
+    const isPasswordValid = await user.comparePassword(password);
+    
+    if (!isPasswordValid) {
+      // Increment login attempts
+      await user.incLoginAttempts();
+      
+      return res.status(401).json({ 
+        error: 'Invalid credentials',
+        message: 'Please check your email and password'
+      });
+    }
+    
+    // Reset login attempts on successful login
+    if (user.loginAttempts > 0) {
+      await user.resetLoginAttempts();
+    }
+    
+    // Update last login
+    await User.findByIdAndUpdate(user._id, { 
+      lastLogin: new Date() 
+    });
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        userId: user._id,
+        role: user.role,
+        email: user.email 
+      },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '7d' }
+    );
+    
+    // Prepare user response (without sensitive data)
+    const userResponse = {
+      id: user._id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      dateOfBirth: user.dateOfBirth,
+      gender: user.gender,
+      address: user.address,
+      profilePicture: user.profilePicture,
+      isVerified: user.isVerified,
+      ...(user.role === 'doctor' && user.doctorInfo && { doctorInfo: user.doctorInfo }),
+      ...(user.role === 'patient' && user.patientInfo && { patientInfo: user.patientInfo }),
+      preferences: user.preferences,
+      lastLogin: new Date()
+    };
+    
+    res.json({ 
+      success: true,
+      user: userResponse, 
+      token,
+      message: 'Login successful'
+    });
+    
+    console.log(`✅ Login successful for: ${user.fullName} (${user.role})`);
+    
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.post('/api/auth/logout', (req, res) => {
-  res.json({ 
-    success: true,
-    message: 'Logged out successfully' 
-  });
+app.post('/api/auth/logout', authenticateToken, async (req, res) => {
+  try {
+    // You could implement token blacklisting here if needed
+    res.json({ 
+      success: true,
+      message: 'Logged out successfully' 
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Registration Route (for creating test users)
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { firstName, lastName, email, password, role, ...otherData } = req.body;
+    
+    // Check if user already exists
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    if (existingUser) {
+      return res.status(400).json({ 
+        error: 'User already exists',
+        message: 'An account with this email already exists'
+      });
+    }
+    
+    // Create new user
+    const userData = {
+      firstName,
+      lastName,
+      email: email.toLowerCase(),
+      password,
+      role,
+      ...otherData
+    };
+    
+    const user = new User(userData);
+    await user.save();
+    
+    console.log(`✅ New ${role} registered: ${firstName} ${lastName}`);
+    
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role
+      }
+    });
+    
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Health Metrics Routes
-app.get('/api/health-metrics', (req, res) => {
-  const { userId } = req.query;
-  
-  const metrics = mockHealthMetrics[userId] || {
-    heartRate: Math.floor(Math.random() * 40) + 60, // 60-100
-    bloodPressure: '120/80',
-    temperature: (Math.random() * 2 + 97).toFixed(1), // 97-99°F
-    weight: Math.floor(Math.random() * 50) + 50, // 50-100 kg
-    height: Math.floor(Math.random() * 30) + 150, // 150-180 cm
-    lastUpdated: new Date().toISOString()
-  };
-  
-  res.json(metrics);
-});
-
-app.put('/api/health-metrics', (req, res) => {
-  const { userId, metrics } = req.body;
-  
-  mockHealthMetrics[userId] = { 
-    ...mockHealthMetrics[userId], 
-    ...metrics,
-    lastUpdated: new Date().toISOString()
-  };
-  
-  // Emit real-time update
-  io.to(`user_${userId}`).emit('health_metrics_updated', mockHealthMetrics[userId]);
-  
-  res.json(mockHealthMetrics[userId]);
-});
-
-// Medications Routes
-app.get('/api/medications', (req, res) => {
-  const { userId } = req.query;
-  
-  const medications = mockMedications[userId] || [
-    {
-      id: '1',
-      name: 'Aspirin',
-      dosage: '100mg',
-      frequency: 'Once daily',
-      startDate: '2024-01-01',
-      endDate: '2024-12-31',
-      instructions: 'Take with food',
-      userId
-    },
-    {
-      id: '2',
-      name: 'Vitamin D',
-      dosage: '1000IU',
-      frequency: 'Once daily',
-      startDate: '2024-01-01',
-      instructions: 'Take in the morning',
-      userId
-    }
-  ];
-  
-  res.json(medications);
-});
-
-app.post('/api/medications', (req, res) => {
-  const medication = { 
-    id: Date.now().toString(), 
-    ...req.body,
-    createdAt: new Date().toISOString()
-  };
-  
-  const userId = req.body.userId;
-  if (!mockMedications[userId]) mockMedications[userId] = [];
-  mockMedications[userId].push(medication);
-  
-  // Emit real-time update
-  io.to(`user_${userId}`).emit('medication_added', medication);
-  
-  res.json(medication);
-});
-
-app.put('/api/medications/:id', (req, res) => {
-  const { id } = req.params;
-  const userId = req.body.userId;
-  
-  if (mockMedications[userId]) {
-    const index = mockMedications[userId].findIndex(m => m.id === id);
-    if (index !== -1) {
-      mockMedications[userId][index] = { 
-        ...mockMedications[userId][index], 
-        ...req.body,
-        updatedAt: new Date().toISOString()
-      };
-      
-      // Emit real-time update
-      io.to(`user_${userId}`).emit('medication_updated', mockMedications[userId][index]);
-      
-      res.json(mockMedications[userId][index]);
-      return;
-    }
-  }
-  
-  res.status(404).json({ error: 'Medication not found' });
-});
-
-app.delete('/api/medications/:id', (req, res) => {
-  const { id } = req.params;
-  
-  for (const userId in mockMedications) {
-    const index = mockMedications[userId].findIndex(m => m.id === id);
-    if (index !== -1) {
-      const deleted = mockMedications[userId].splice(index, 1)[0];
-      
-      // Emit real-time update
-      io.to(`user_${userId}`).emit('medication_deleted', { id });
-      
-      res.json({ message: 'Medication deleted', deleted });
-      return;
-    }
-  }
-  
-  res.status(404).json({ error: 'Medication not found' });
-});
-
-// Appointments Routes
-app.get('/api/appointments', (req, res) => {
-  const { userId, role } = req.query;
-  
-  let appointments = mockAppointments;
-  
-  if (role === 'patient') {
-    appointments = mockAppointments.filter(apt => apt.patientId === userId);
-  } else if (role === 'doctor') {
-    appointments = mockAppointments.filter(apt => apt.doctorId === userId);
-  }
-  
-  res.json(appointments);
-});
-
-app.get('/api/appointments/upcoming', (req, res) => {
-  const { userId, role, limit = 5 } = req.query;
-  
-  let appointments = mockAppointments;
-  
-  if (role === 'patient') {
-    appointments = mockAppointments.filter(apt => apt.patientId === userId);
-  } else if (role === 'doctor') {
-    appointments = mockAppointments.filter(apt => apt.doctorId === userId);
-  }
-  
-  const upcoming = appointments
-    .filter(apt => new Date(apt.date) > new Date())
-    .sort((a, b) => new Date(a.date) - new Date(b.date))
-    .slice(0, parseInt(limit));
+app.get('/api/health-metrics', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user._id;
     
-  res.json(upcoming);
-});
-
-app.get('/api/appointments/pending', (req, res) => {
-  const { userId } = req.query;
-  
-  const pending = mockAppointments.filter(apt => 
-    apt.doctorId === userId && apt.status === 'pending'
-  );
-  
-  res.json(pending);
-});
-
-app.post('/api/appointments', (req, res) => {
-  const appointment = {
-    id: Date.now().toString(),
-    ...req.body,
-    status: 'pending',
-    createdAt: new Date().toISOString()
-  };
-  
-  mockAppointments.push(appointment);
-  
-  // Emit to doctor
-  if (appointment.doctorId) {
-    io.to(`user_${appointment.doctorId}`).emit('new_appointment', appointment);
+    // Try to find existing metrics, or create default ones
+    let metrics = await HealthMetrics.findOne({ userId }).sort({ createdAt: -1 });
+    
+    if (!metrics) {
+      // Create default metrics for demonstration
+      metrics = {
+        heartRate: Math.floor(Math.random() * 40) + 60,
+        bloodPressure: '120/80',
+        temperature: (Math.random() * 2 + 97).toFixed(1),
+        weight: Math.floor(Math.random() * 50) + 50,
+        height: Math.floor(Math.random() * 30) + 150,
+        lastUpdated: new Date().toISOString()
+      };
+    }
+    
+    res.json(metrics);
+  } catch (error) {
+    console.error('Health metrics fetch error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  
-  res.json(appointment);
 });
 
-app.put('/api/appointments/:id', (req, res) => {
-  const { id } = req.params;
-  const index = mockAppointments.findIndex(apt => apt.id === id);
-  
-  if (index !== -1) {
-    mockAppointments[index] = { 
-      ...mockAppointments[index], 
-      ...req.body,
-      updatedAt: new Date().toISOString()
+// Patients Routes (for doctors to view their patients)
+app.get('/api/patients', authenticateToken, async (req, res) => {
+  try {
+    // Only doctors can access this route
+    if (req.user.role !== 'doctor') {
+      return res.status(403).json({ error: 'Access denied. Doctors only.' });
+    }
+    
+    const patients = await User.find({ 
+      role: 'patient',
+      isActive: true 
+    }).select('-password -verificationToken -passwordResetToken');
+    
+    res.json(patients);
+  } catch (error) {
+    console.error('Patients fetch error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/patients/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Only doctors can access patient details
+    if (req.user.role !== 'doctor') {
+      return res.status(403).json({ error: 'Access denied. Doctors only.' });
+    }
+    
+    const patient = await User.findOne({ 
+      _id: id, 
+      role: 'patient' 
+    }).select('-password -verificationToken -passwordResetToken');
+    
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+    
+    res.json(patient);
+  } catch (error) {
+    console.error('Patient fetch error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Doctors Routes (for patients to find doctors)
+app.get('/api/doctors', authenticateToken, async (req, res) => {
+  try {
+    const { specialty, search } = req.query;
+    
+    let query = { 
+      role: 'doctor',
+      isActive: true 
     };
     
-    const updated = mockAppointments[index];
+    if (specialty) {
+      query['doctorInfo.specialty'] = specialty;
+    }
     
-    // Emit to both patient and doctor
-    io.to(`user_${updated.patientId}`).emit('appointment_updated', updated);
-    io.to(`user_${updated.doctorId}`).emit('appointment_updated', updated);
+    if (search) {
+      query.$or = [
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
+        { 'doctorInfo.specialty': { $regex: search, $options: 'i' } }
+      ];
+    }
     
-    res.json(updated);
-  } else {
-    res.status(404).json({ error: 'Appointment not found' });
-  }
-});
-
-app.put('/api/appointments/:id/approve', (req, res) => {
-  const { id } = req.params;
-  const { doctorId } = req.body;
-  
-  const index = mockAppointments.findIndex(apt => apt.id === id);
-  
-  if (index !== -1) {
-    mockAppointments[index].status = 'confirmed';
-    mockAppointments[index].approvedBy = doctorId;
-    mockAppointments[index].approvedAt = new Date().toISOString();
+    const doctors = await User.find(query)
+      .select('-password -verificationToken -passwordResetToken')
+      .sort({ 'doctorInfo.rating.average': -1 });
     
-    const approved = mockAppointments[index];
-    
-    // Emit to patient
-    io.to(`user_${approved.patientId}`).emit('appointment_approved', approved);
-    
-    res.json(approved);
-  } else {
-    res.status(404).json({ error: 'Appointment not found' });
-  }
-});
-
-app.put('/api/appointments/:id/reject', (req, res) => {
-  const { id } = req.params;
-  const { doctorId, reason } = req.body;
-  
-  const index = mockAppointments.findIndex(apt => apt.id === id);
-  
-  if (index !== -1) {
-    mockAppointments[index].status = 'cancelled';
-    mockAppointments[index].rejectedBy = doctorId;
-    mockAppointments[index].rejectionReason = reason;
-    mockAppointments[index].rejectedAt = new Date().toISOString();
-    
-    const rejected = mockAppointments[index];
-    
-    // Emit to patient
-    io.to(`user_${rejected.patientId}`).emit('appointment_rejected', rejected);
-    
-    res.json(rejected);
-  } else {
-    res.status(404).json({ error: 'Appointment not found' });
-  }
-});
-
-// Lab Reports Routes
-app.get('/api/lab-reports', (req, res) => {
-  const { userId, doctorId } = req.query;
-  
-  let reports = mockLabReports;
-  
-  if (doctorId) {
-    reports = mockLabReports.filter(report => report.doctorId === doctorId);
-  } else if (userId) {
-    reports = mockLabReports.filter(report => report.patientId === userId);
-  }
-  
-  res.json(reports);
-});
-
-app.post('/api/lab-reports', (req, res) => {
-  const report = {
-    id: Date.now().toString(),
-    ...req.body,
-    createdAt: new Date().toISOString()
-  };
-  
-  mockLabReports.push(report);
-  
-  // Emit to patient and doctor
-  io.to(`user_${report.patientId}`).emit('new_lab_report', report);
-  if (report.doctorId) {
-    io.to(`user_${report.doctorId}`).emit('new_lab_report', report);
-  }
-  
-  res.json(report);
-});
-
-// Patients Routes
-app.get('/api/patients', (req, res) => {
-  const { doctorId } = req.query;
-  
-  const patients = Object.values(mockUsers).filter(user => 
-    user.role === 'patient'
-  );
-  
-  res.json(patients);
-});
-
-app.get('/api/patients/:id', (req, res) => {
-  const { id } = req.params;
-  const patient = mockUsers[id];
-  
-  if (patient && patient.role === 'patient') {
-    res.json(patient);
-  } else {
-    res.status(404).json({ error: 'Patient not found' });
+    res.json(doctors);
+  } catch (error) {
+    console.error('Doctors fetch error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Notifications Routes
-app.get('/api/notifications', (req, res) => {
-  const { userId } = req.query;
-  
-  const notifications = mockNotifications[userId] || [
-    {
-      id: '1',
-      title: 'Welcome to AI Healthcare!',
-      message: 'Your health journey starts here. Track your medications, appointments, and health metrics.',
-      type: 'info',
-      read: false,
-      createdAt: new Date().toISOString()
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // If you have Notification model, use it. Otherwise, create default notification
+    let notifications;
+    
+    try {
+      notifications = await Notification.find({ userId }).sort({ createdAt: -1 });
+    } catch (modelError) {
+      // If Notification model doesn't exist, return default
+      notifications = [
+        {
+          id: '1',
+          title: 'Welcome to AI Healthcare!',
+          message: `Welcome ${req.user.fullName}! Your health journey starts here. Track your medications, appointments, and health metrics.`,
+          type: 'info',
+          read: false,
+          createdAt: new Date().toISOString()
+        }
+      ];
     }
-  ];
-  
-  res.json(notifications);
-});
-
-app.put('/api/notifications/:id/read', (req, res) => {
-  const { id } = req.params;
-  
-  // Mark notification as read in all users
-  for (const userId in mockNotifications) {
-    const notification = mockNotifications[userId].find(n => n.id === id);
-    if (notification) {
-      notification.read = true;
-      res.json({ message: 'Notification marked as read' });
-      return;
-    }
+    
+    res.json(notifications);
+  } catch (error) {
+    console.error('Notifications fetch error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  
-  res.status(404).json({ error: 'Notification not found' });
-});
-
-app.post('/api/notifications', (req, res) => {
-  const notification = {
-    id: Date.now().toString(),
-    ...req.body,
-    createdAt: new Date().toISOString(),
-    read: false
-  };
-  
-  const userId = req.body.userId;
-  if (!mockNotifications[userId]) mockNotifications[userId] = [];
-  mockNotifications[userId].push(notification);
-  
-  // Emit socket notification
-  io.to(`user_${userId}`).emit('notification', notification);
-  
-  res.json(notification);
 });
 
 // Health check endpoint
@@ -498,8 +437,145 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
   });
+});
+
+// Test route to create sample users (remove in production)
+app.post('/api/auth/create-test-users', async (req, res) => {
+  try {
+    // Check if users already exist
+    const existingUsers = await User.countDocuments();
+    if (existingUsers > 0) {
+      return res.json({ message: 'Test users already exist' });
+    }
+    
+    const testUsers = [
+      {
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
+        password: 'password123',
+        role: 'patient',
+        phone: '+1234567890',
+        dateOfBirth: new Date('1990-05-15'),
+        gender: 'male',
+        address: {
+          street: '123 Main St',
+          city: 'Mumbai',
+          state: 'Maharashtra',
+          zipCode: '400001',
+          country: 'India'
+        },
+        patientInfo: {
+          emergencyContact: {
+            name: 'Jane Doe',
+            relationship: 'Wife',
+            phone: '+1234567899',
+            email: 'jane@example.com'
+          },
+          bloodType: 'O+',
+          allergies: ['Penicillin'],
+          chronicConditions: []
+        },
+        isActive: true,
+        isVerified: true
+      },
+      {
+        firstName: 'Dr. Sarah',
+        lastName: 'Smith',
+        email: 'dr.smith@example.com',
+        password: 'password123',
+        role: 'doctor',
+        phone: '+1987654321',
+        gender: 'female',
+        address: {
+          street: '456 Medical Center Dr',
+          city: 'Mumbai',
+          state: 'Maharashtra',
+          zipCode: '400002',
+          country: 'India'
+        },
+        doctorInfo: {
+          specialty: 'Cardiology',
+          licenseNumber: 'MH12345',
+          experience: 10,
+          qualification: ['MBBS', 'MD - Cardiology'],
+          hospital: 'City General Hospital',
+          department: 'Cardiology',
+          consultationFee: 1000,
+          availableHours: {
+            monday: { start: '09:00', end: '17:00', available: true },
+            tuesday: { start: '09:00', end: '17:00', available: true },
+            wednesday: { start: '09:00', end: '17:00', available: true },
+            thursday: { start: '09:00', end: '17:00', available: true },
+            friday: { start: '09:00', end: '17:00', available: true },
+            saturday: { start: '09:00', end: '13:00', available: true },
+            sunday: { start: '', end: '', available: false }
+          },
+          rating: {
+            average: 4.5,
+            count: 25
+          },
+          bio: 'Experienced cardiologist with 10+ years of practice.'
+        },
+        isActive: true,
+        isVerified: true
+      },
+      {
+        firstName: 'Alice',
+        lastName: 'Johnson',
+        email: 'alice@example.com',
+        password: 'password123',
+        role: 'patient',
+        phone: '+1555123456',
+        dateOfBirth: new Date('1985-08-22'),
+        gender: 'female',
+        address: {
+          street: '789 Oak Avenue',
+          city: 'Pune',
+          state: 'Maharashtra',
+          zipCode: '411001',
+          country: 'India'
+        },
+        patientInfo: {
+          emergencyContact: {
+            name: 'Bob Johnson',
+            relationship: 'Husband',
+            phone: '+1555123457',
+            email: 'bob@example.com'
+          },
+          bloodType: 'A+',
+          allergies: [],
+          chronicConditions: ['Hypertension']
+        },
+        isActive: true,
+        isVerified: true
+      }
+    ];
+    
+    // Create users
+    for (const userData of testUsers) {
+      const user = new User(userData);
+      await user.save();
+      console.log(`Created test user: ${userData.firstName} ${userData.lastName} (${userData.role})`);
+    }
+    
+    res.json({ 
+      success: true,
+      message: 'Test users created successfully',
+      users: testUsers.map(u => ({ 
+        email: u.email, 
+        role: u.role, 
+        name: `${u.firstName} ${u.lastName}` 
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Create test users error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Error handling middleware
@@ -523,6 +599,7 @@ server.listen(PORT, () => {
   console.log(`📊 API available at http://localhost:${PORT}/api`);
   console.log(`🔌 Socket.IO server ready`);
   console.log(`📋 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`🧪 Create test users: POST http://localhost:${PORT}/api/auth/create-test-users`);
 });
 
 module.exports = app;

@@ -18,7 +18,7 @@ export default function LoginPage() {
     setError("");
 
     try {
-      console.log("Attempting login with:", { email: form.email });
+      console.log("🔐 Attempting login with:", { email: form.email });
 
       const res = await fetch("/api/auth/sign-in", {
         method: "POST",
@@ -28,41 +28,52 @@ export default function LoginPage() {
         body: JSON.stringify(form),
       });
 
-      console.log("Response status:", res.status);
+      console.log("📡 Login response status:", res.status);
 
       const data = await res.json();
-      console.log("Response data:", data);
+      console.log("📦 Login response data:", { 
+        success: res.ok, 
+        hasUser: !!data.user, 
+        hasToken: !!data.sessionToken 
+      });
 
       if (res.ok) {
-        console.log("Login successful, session created in database");
+        console.log("✅ Login successful, storing auth data");
 
-        // Store minimal user data in localStorage (optional)
+        // ✅ FIXED: Store user data
         if (data.user) {
-          localStorage.setItem(
-            "user",
-            JSON.stringify({
-              id: data.user.id,
-              firstName: data.user.firstName,
-              lastName: data.user.lastName,
-              email: data.user.email,
-              role: data.user.role,
-            })
-          );
-
-          localStorage.setItem("sessionToken", data.sessionToken);
-
-          // ✅ Redirect all users to /Dashboard
-          setTimeout(() => {
-            router.push("/dashboard");
-          }, 200);
+          const userData = {
+            id: data.user.id,
+            firstName: data.user.firstName,
+            lastName: data.user.lastName,
+            email: data.user.email,
+            role: data.user.role,
+          };
+          
+          localStorage.setItem("user", JSON.stringify(userData));
+          console.log("📦 User data stored:", userData);
         }
+
+        // ✅ FIXED: Store session token with consistent naming
+        if (data.sessionToken) {
+          localStorage.setItem("sessionToken", data.sessionToken);
+          // Also store as authToken for compatibility with other parts of the app
+          localStorage.setItem("authToken", data.sessionToken);
+          console.log("🔑 Session token stored successfully");
+        }
+
+        console.log("➡️ Redirecting to dashboard");
+        
+        // ✅ Immediate redirect without delay
+        router.push("/dashboard");
+        
       } else {
-        console.log("Login failed:", data.message);
+        console.log("❌ Login failed:", data.message);
         setError(data.message || "Login failed");
       }
     } catch (error) {
-      console.error("Login error:", error);
-      setError("Network error. Please try again.");
+      console.error("💥 Login error:", error);
+      setError("Network error. Please check your connection and try again.");
     } finally {
       setIsLoading(false);
     }

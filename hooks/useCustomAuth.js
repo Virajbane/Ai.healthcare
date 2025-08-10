@@ -1,4 +1,3 @@
-// hooks/useCustomAuth.js
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -13,35 +12,46 @@ export const useCustomAuth = () => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const sessionToken = localStorage.getItem('sessionToken');
+        const authToken = localStorage.getItem('authToken');
         
-        if (sessionToken) {
-          // Validate session with database
-          const response = await fetch('/api/auth/validate-session', {
-            method: 'POST',
+        if (authToken) {
+          // Validate token with backend using JWT
+          const response = await fetch('http://localhost:5000/api/auth/current-user', {
+            method: 'GET',
             headers: {
               'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ sessionToken })
+              'Authorization': `Bearer ${authToken}`
+            }
           });
 
           if (response.ok) {
-            const sessionData = await response.json();
-            setUser(sessionData.user);
+            const userData = await response.json();
+            console.log('Auth check successful:', userData);
+            
+            setUser(userData);
             setIsSignedIn(true);
+            
+            // Update localStorage with fresh user data
+            localStorage.setItem('user', JSON.stringify(userData));
+            
           } else {
-            // Invalid session, clear data
-            localStorage.removeItem('sessionToken');
+            console.log('Auth check failed:', response.status);
+            // Invalid token, clear data
+            localStorage.removeItem('authToken');
             localStorage.removeItem('user');
             setUser(null);
             setIsSignedIn(false);
           }
         } else {
+          console.log('No auth token found');
           setUser(null);
           setIsSignedIn(false);
         }
       } catch (error) {
         console.error('Auth check error:', error);
+        // Clear data on error
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
         setUser(null);
         setIsSignedIn(false);
       } finally {
@@ -54,61 +64,62 @@ export const useCustomAuth = () => {
 
   const logout = async () => {
     try {
-      const sessionToken = localStorage.getItem('sessionToken');
+      const authToken = localStorage.getItem('authToken');
       
-      if (sessionToken) {
+      if (authToken) {
         // Call logout API
-        await fetch('/api/auth/logout', {
+        await fetch('http://localhost:5000/api/auth/logout', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ sessionToken })
+            'Authorization': `Bearer ${authToken}`
+          }
         });
       }
       
       // Clear local storage
-      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('authToken');
       localStorage.removeItem('user');
       
       // Update state
       setUser(null);
       setIsSignedIn(false);
       
-      // Redirect to home
-      router.push('/');
+      // Redirect to login
+      router.push('/login');
       
     } catch (error) {
       console.error('Logout error:', error);
       // Clear local data even if API fails
-      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('authToken');
       localStorage.removeItem('user');
       setUser(null);
       setIsSignedIn(false);
-      router.push('/');
+      router.push('/login');
     }
   };
 
   const refreshAuth = async () => {
-    const sessionToken = localStorage.getItem('sessionToken');
+    const authToken = localStorage.getItem('authToken');
     
-    if (sessionToken) {
+    if (authToken) {
       try {
-        const response = await fetch('/api/auth/validate-session', {
-          method: 'POST',
+        const response = await fetch('http://localhost:5000/api/auth/current-user', {
+          method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ sessionToken })
+            'Authorization': `Bearer ${authToken}`
+          }
         });
 
         if (response.ok) {
-          const sessionData = await response.json();
-          setUser(sessionData.user);
+          const userData = await response.json();
+          setUser(userData);
           setIsSignedIn(true);
-          return sessionData.user;
+          localStorage.setItem('user', JSON.stringify(userData));
+          return userData;
         } else {
-          localStorage.removeItem('sessionToken');
+          localStorage.removeItem('authToken');
           localStorage.removeItem('user');
           setUser(null);
           setIsSignedIn(false);
